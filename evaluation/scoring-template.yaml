@@ -1,0 +1,45 @@
+# Copy this file to comparison/<model>/<task-id>/score.yaml
+schema_version: 1
+run:
+  model: ""           # e.g. claude-code, cursor, codex, grok
+  model_version: ""
+  task_id: ""         # 01 .. 06
+  date: ""            # YYYY-MM-DD
+  agent_had_shell: false
+  wall_clock_minutes: 0
+  notes: ""
+
+mechanical:
+  terraform_validate: na    # pass | fail | na
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: na
+
+scores:
+  correctness: 0
+  security: 0
+  reliability: 0
+  edge_cases: 0
+  judgment: 0
+  observability: 0
+
+critical_security_fail: false
+critical_security_notes: ""
+
+findings:
+  - severity: high        # critical | high | medium | low | note
+    title: ""
+    evidence: ""
+    dimension: security
+
+edge_cases_identified: []
+edge_cases_missed: []
+
+strengths: []
+weaknesses: []
+
+merge_decision: no        # yes | yes_with_changes | no
+merge_rationale: ""
+overall: 0                # mean of scores
+passed: false

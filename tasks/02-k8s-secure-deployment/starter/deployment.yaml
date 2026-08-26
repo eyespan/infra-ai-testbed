@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: myregistry/api:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_PASSWORD
+              value: "supersecret"
+            - name: NODE_ENV
+              value: production
+          securityContext:
+            privileged: true

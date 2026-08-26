@@ -1,0 +1,50 @@
+Name:         payments-7f9c4d6b8-xk2nq
+Namespace:    prod
+Priority:     0
+Node:         ip-10-0-3-22.ec2.internal/10.0.3.22
+Start Time:   Tue, 25 Aug 2026 12:00:11 +0000
+Labels:       app=payments
+              pod-template-hash=7f9c4d6b8
+Annotations:  deployment.kubernetes.io/revision: 14
+Status:       Running
+IP:           10.0.3.88
+Containers:
+  payments:
+    Container ID:   containerd://9f3a
+    Image:          ghcr.io/example/payments-api:a1b2c3d4e5f6
+    Image ID:       ghcr.io/example/payments-api@sha256:aaaaaaaa
+    Port:           8080/TCP
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       OOMKilled
+      Exit Code:    137
+      Started:      Tue, 25 Aug 2026 12:38:01 +0000
+      Finished:     Tue, 25 Aug 2026 12:38:09 +0000
+    Ready:          False
+    Restart Count:  12
+    Limits:
+      cpu:     500m
+      memory:  64Mi
+    Requests:
+      cpu:     100m
+      memory:  64Mi
+    Liveness:   http-get http://:8080/healthz delay=10s timeout=1s period=10s
+    Readiness:  http-get http://:8080/ready delay=5s timeout=1s period=5s
+    Environment:
+      NODE_ENV:  production
+      NODE_OPTIONS: --max-old-space-size=256
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             False
+  ContainersReady   False
+  PodScheduled      True
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  40m                default-scheduler  Successfully assigned prod/payments-7f9c4d6b8-xk2nq
+  Normal   Pulled     40m                kubelet            Successfully pulled image
+  Normal   Created    2m (x12 over 40m)  kubelet            Created container payments
+  Normal   Started    2m (x12 over 40m)  kubelet            Started container payments
+  Warning  BackOff    1m (x48 over 39m)  kubelet            Back-off restarting failed container payments

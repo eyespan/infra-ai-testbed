@@ -1,0 +1,81 @@
+@Library('platform') _
+
+pipeline {
+  agent { label 'linux && docker' }
+
+  options {
+    timestamps()
+    timeout(time: 45, unit: 'MINUTES')
+    disableConcurrentBuilds()
+  }
+
+  environment {
+    APP = 'payments-api'
+    REGISTRY = 'ghcr.io/example'
+  }
+
+  stages {
+    stage('Unit') {
+      steps {
+        sh 'npm ci'
+        sh 'npm test'
+      }
+    }
+
+    stage('Integration') {
+      steps {
+        sh 'docker compose -f docker-compose.test.yml up --abort-on-container-exit'
+      }
+    }
+
+    stage('Scan') {
+      steps {
+        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+      }
+    }
+
+    stage('Build') {
+      steps {
+        script {
+          def sha = env.GIT_COMMIT.take(12)
+          sh "docker build -t ${REGISTRY}/${APP}:${sha} ."
+          sh "docker push ${REGISTRY}/${APP}:${sha}"
+          env.IMAGE_TAG = sha
+        }
+      }
+    }
+
+    stage('Deploy staging') {
+      when { branch 'main' }
+      steps {
+        platform.deploy('staging', env.IMAGE_TAG)
+        platform.notifySlack("staging ${env.IMAGE_TAG}")
+      }
+    }
+
+    stage('Approve production') {
+      when { branch 'main' }
+      steps {
+        input message: 'Deploy to production?', ok: 'Deploy'
+      }
+    }
+
+    stage('Deploy production') {
+      when { branch 'main' }
+      steps {
+        platform.deploy('production', env.IMAGE_TAG)
+        platform.notifySlack("production ${env.IMAGE_TAG}")
+      }
+    }
+  }
+
+  post {
+    failure {
+      script {
+        if (env.IMAGE_TAG) {
+          platform.rollback('production')
+        }
+      }
+    }
+  }
+}

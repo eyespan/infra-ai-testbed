@@ -1,0 +1,7 @@
+# Incomplete on purpose — no spec.selector, no endpoints
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: payments
+  namespace: prod
+spec: {}

@@ -1,0 +1,4 @@
+{"level":"info","msg":"listening","port":8080}
+{"level":"info","msg":"connected to postgres"}
+{"level":"warn","msg":"heap approaching limit","rss_mb":61}
+<no further lines — process killed>

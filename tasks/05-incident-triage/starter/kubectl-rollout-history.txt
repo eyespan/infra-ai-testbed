@@ -1,0 +1,4 @@
+deployment.apps/payments
+REVISION  CHANGE-CAUSE
+13        bump memory request/limit to 256Mi
+14        reduce memory limit to 64Mi to save cost
