@@ -1,0 +1,25 @@
+name: Deploy Kubernetes workload
+description: Update one image and wait for its rollout using short-lived OIDC credentials.
+inputs:
+  environment:
+    required: true
+  cluster-name:
+    required: true
+  app:
+    required: true
+  image:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        CLUSTER_NAME: ${{ inputs.cluster-name }}
+        APP: ${{ inputs.app }}
+        IMAGE: ${{ inputs.image }}
+      run: |
+        set -euo pipefail
+        aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+        kubectl set image "deployment/$APP" "$APP=$IMAGE" --namespace "$TARGET_ENVIRONMENT"
+        kubectl rollout status "deployment/$APP" --namespace "$TARGET_ENVIRONMENT" --timeout=5m

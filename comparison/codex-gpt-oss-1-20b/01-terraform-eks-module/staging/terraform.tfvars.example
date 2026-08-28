@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars only in an approved environment. Supply real values
+# through the organization's secure variable mechanism; no account, region, or
+# key identifiers are embedded in this repository.
+
+# aws_region                    = "<approved-region>"
+# environment                   = "<environment-name>"
+# cluster_name                  = "<cluster-name>"
+# kubernetes_version            = "<currently-supported-eks-version>"
+# vpc_cidr                      = "<approved-vpc-cidr>"
+# cloudwatch_log_kms_key_id     = "<cloudwatch-kms-key-arn-or-id>"
+# secrets_kms_key_arn           = "<eks-secrets-kms-key-arn>"
+# irsa_namespace                = "<namespace>"
+# irsa_service_account_name     = "<service-account>"
+# irsa_policy_arns              = ["<reviewed-workload-policy-arn>"]

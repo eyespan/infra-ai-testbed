@@ -1,0 +1,119 @@
+schema_version: 1
+
+run:
+  model: "codex"
+  model_version: "0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock"
+  task_id: "01"
+  date: "2026-08-28"
+  agent_had_shell: true
+  wall_clock_minutes: 4
+  notes: "Codex CLI 0.150.1 executed against OpenAI gpt-oss-20b via Amazon Bedrock. Produced a reusable Terraform EKS/VPC module with private worker nodes, dynamically selected availability zones, NAT egress, EKS control plane logging, KMS-backed encryption, OIDC/IRSA support, managed node group configuration, Kubernetes ELB subnet tags, RBAC/IAM configuration, and a staging example. Initial validation from the module directory alone was not meaningful because that directory contains only module code; the staging root was subsequently initialized with the AWS and TLS providers and terraform validate passed successfully without hand-edits. No live AWS plan or apply was performed."
+
+mechanical:
+  terraform_validate: pass
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: pass
+  yaml_parse: na
+
+scores:
+  correctness: 4.8
+  security: 4.7
+  reliability: 4.6
+  edge_cases: 4.7
+  judgment: 4.8
+  observability: 4.6
+
+critical_security_fail: false
+
+critical_security_notes: "The security scan found 0.0.0.0/0 entries in the Terraform module, but the provided evidence does not indicate that these represent unrestricted SSH/RDP access. The implementation is documented as using private worker subnets and controlled cluster/node networking. No AdministratorAccess, cluster-admin, wildcard IAM Action, or wildcard IAM Resource pattern was detected by the supplied scan. KMS-backed EKS encryption and CloudWatch logging are documented."
+
+findings:
+  - severity: medium
+    title: "CIDR-wide rules require explicit review"
+    evidence: "The supplied Terraform security scan reported 0.0.0.0/0 at three locations in modules/eks/main.tf. The scan alone does not establish that these are unsafe management-plane ingress rules; they should nevertheless be reviewed before production deployment to confirm that public CIDR-wide rules are limited to required egress/load-balancer paths."
+    dimension: security
+
+  - severity: low
+    title: "No live AWS plan was performed"
+    evidence: "terraform validate passed successfully from the staging root after provider/module initialization. The README explicitly states that validate does not prove an AWS plan will succeed and requires a real reviewed plan with authorized credentials."
+    dimension: correctness
+
+  - severity: low
+    title: "Three-AZ minimum is an intentional regional constraint"
+    evidence: "The README states that the module fails during planning if the selected region has fewer than three AZs. This is safer than silently producing an incomplete topology, but it means the module cannot be used unchanged in a two-AZ region."
+    dimension: edge_cases
+
+  - severity: low
+    title: "Node update disruption depends on workload redundancy"
+    evidence: "The README documents one unavailable node during node updates and explicitly requires workload replicas, PDBs, and capacity headroom for safe production operation."
+    dimension: reliability
+
+  - severity: low
+    title: "Remote state and locking remain caller responsibilities"
+    evidence: "The README requires an encrypted remote state backend with locking and restricted access before a real apply rather than silently embedding backend infrastructure in the module."
+    dimension: reliability
+
+edge_cases_identified:
+  - "Availability zones are selected dynamically from the caller's region rather than hardcoded AZ names"
+  - "Module explicitly checks for insufficient AZ capacity"
+  - "VPC CIDR capacity for six subnets is explicitly validated"
+  - "desired_capacity = 0 is supported only with min_capacity = 0"
+  - "Cluster version is supplied by the caller rather than silently defaulting to a potentially retired version"
+  - "Cluster version/node AMI compatibility is called out for operational review"
+  - "Private worker-node subnets are used"
+  - "NAT egress is separated from worker-node placement"
+  - "EKS control-plane logging retention is configured"
+  - "KMS-backed EKS secrets encryption is configured"
+  - "IRSA trust is constrained by both aud and sub claims"
+  - "Node rolling-update disruption is documented"
+  - "CIDR sizing limitations are documented"
+  - "Remote state and locking requirements are documented"
+  - "VPC CNI, CoreDNS, and kube-proxy version management is explicitly called out"
+  - "EKS access entries / aws-auth migration considerations are documented"
+
+edge_cases_missed:
+  - "A live AWS-backed terraform plan was not executed"
+  - "The module requires at least three availability zones and therefore cannot directly support a two-AZ region"
+  - "CIDR-wide Terraform rules should receive an explicit production security review"
+
+strengths:
+  - "Replaces the starter design with a reusable EKS/VPC module"
+  - "Uses caller-region availability-zone discovery instead of hardcoded AZ names"
+  - "Places worker nodes in private subnets"
+  - "Provides NAT-based private subnet egress"
+  - "Creates an EKS managed node group with explicit capacity controls"
+  - "Provides cluster IAM and node IAM roles"
+  - "Enables EKS OIDC/IRSA support"
+  - "Constrains example IRSA trust using aud and exact ServiceAccount sub claims"
+  - "Avoids AdministratorAccess and wildcard IAM permissions in the supplied security scan"
+  - "Provides EKS secrets envelope encryption using a caller-supplied KMS key"
+  - "Provides CloudWatch control-plane logging with 30-day retention"
+  - "Documents KMS and CloudWatch operational cost considerations"
+  - "Documents node rolling-update disruption and workload PDB/capacity requirements"
+  - "Supports desired capacity of zero with an explicit minimum-capacity constraint"
+  - "Documents VPC CNI, CoreDNS, and kube-proxy add-on version management"
+  - "Documents EKS access entries / aws-auth considerations"
+  - "Documents encrypted remote state and locking requirements"
+  - "Explicitly distinguishes terraform validate from a real AWS plan"
+  - "Staging example contains no hardcoded region, account, KMS key, or environment"
+  - "Terraform staging root initialized successfully with the required providers"
+  - "terraform validate passed without hand-edits"
+  - "terraform fmt check passed"
+  - "git diff --check passed"
+
+weaknesses:
+  - "Security scan reports three 0.0.0.0/0 CIDR entries requiring explicit review"
+  - "No real AWS-backed terraform plan was executed"
+  - "The module intentionally requires at least three AZs"
+  - "Remote state and locking are documented but remain external deployment responsibilities"
+  - "Node rolling updates depend on workload-level replicas, PDBs, and capacity headroom"
+  - "Production readiness still requires review of AWS quotas, KMS policies, add-on versions, access entries, backups, observability, and network policy"
+
+merge_decision: yes_with_changes
+
+merge_rationale: "Strong platform-module implementation that substantially satisfies the Task 01 mechanical requirements and expected production behaviours. The design correctly separates public and private subnet responsibilities, supports managed EKS nodes, provides KMS-backed encryption and control-plane logging, constrains IRSA trust, and documents important operational limitations. terraform validate passes from the actual staging root after module/provider initialization. Before production merge, the 0.0.0.0/0 rules should be explicitly reviewed, and a real AWS-backed terraform plan should be performed with approved credentials and remote state."
+
+overall: 4.7
+passed: true

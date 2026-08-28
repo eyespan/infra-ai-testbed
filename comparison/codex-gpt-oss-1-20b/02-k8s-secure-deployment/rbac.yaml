@@ -1,0 +1,10 @@
+# The API has no demonstrated need to call the Kubernetes API.  It therefore
+# receives no RoleBinding or ClusterRoleBinding; zero permissions is least
+# privilege.  Add a narrowly scoped Role and binding only with a documented
+# application requirement.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-no-kubernetes-api-access
+  namespace: api-prod
+rules: []

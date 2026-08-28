@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: api-prod
+data:
+  DB_HOST: postgres.prod.svc.cluster.local

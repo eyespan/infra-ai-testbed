@@ -1,0 +1,37 @@
+name: Configure AWS credentials with GitHub OIDC
+description: Exchange GitHub's short-lived OIDC token for a scoped AWS role.
+inputs:
+  role-to-assume:
+    required: true
+  aws-region:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        AWS_REGION: ${{ inputs.aws-region }}
+        AWS_ROLE_ARN: ${{ inputs.role-to-assume }}
+      run: |
+        set -euo pipefail
+        test -n "$AWS_ROLE_ARN"
+        test -n "$AWS_REGION"
+        token="$(curl --fail --silent --show-error \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" | jq -r '.value')"
+        credentials="$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ROLE_ARN" \
+          --role-session-name "gha-${GITHUB_RUN_ID}" \
+          --web-identity-token "$token" \
+          --duration-seconds 900 \
+          --output json)"
+        access_key="$(jq -r '.Credentials.AccessKeyId' <<<"$credentials")"
+        secret_key="$(jq -r '.Credentials.SecretAccessKey' <<<"$credentials")"
+        session_token="$(jq -r '.Credentials.SessionToken' <<<"$credentials")"
+        printf '::add-mask::%s\n::add-mask::%s\n::add-mask::%s\n' "$access_key" "$secret_key" "$session_token"
+        {
+          echo "AWS_ACCESS_KEY_ID=$access_key"
+          echo "AWS_SECRET_ACCESS_KEY=$secret_key"
+          echo "AWS_SESSION_TOKEN=$session_token"
+          echo "AWS_REGION=$AWS_REGION"
+        } >> "$GITHUB_ENV"
