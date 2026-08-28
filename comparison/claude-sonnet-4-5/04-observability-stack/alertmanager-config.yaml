@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      # Global configuration
+      resolve_timeout: 5m
+      # PagerDuty integration (example)
+      pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+      # Slack webhook (example)
+      slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+    # Templates for notifications
+    templates:
+      - '/etc/alertmanager/templates/*.tmpl'
+
+    # Route tree for alert distribution
+    route:
+      # Default receiver for all alerts
+      receiver: 'default'
+      # Group alerts by these labels to reduce noise
+      group_by: ['alertname', 'cluster', 'namespace', 'pod']
+      # Wait time before sending initial notification
+      group_wait: 30s
+      # Wait time before sending notification about new alerts in existing group
+      group_interval: 5m
+      # Wait time before re-sending notification if alert is still firing
+      repeat_interval: 4h
+
+      # Child routes for specific alert types
+      routes:
+        # Critical alerts go to PagerDuty and Slack
+        - match:
+            severity: critical
+          receiver: 'critical-alerts'
+          continue: false  # Don't continue to other routes
+          group_wait: 10s
+          repeat_interval: 1h
+
+        # Warning alerts go to Slack only
+        - match:
+            severity: warning
+          receiver: 'warning-alerts'
+          continue: false
+          group_wait: 5m
+          repeat_interval: 12h
+
+        # Prometheus self-monitoring alerts
+        - match:
+            component: prometheus
+          receiver: 'ops-team'
+          continue: false
+
+    # Inhibition rules - suppress certain alerts when others are firing
+    inhibit_rules:
+      # Suppress warning if critical alert is firing for same resource
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['namespace', 'pod', 'container']
+
+      # Suppress pod alerts if node is down
+      - source_match:
+          alertname: 'NodeNotReady'
+        target_match_re:
+          alertname: '(Pod.*|Container.*)'
+        equal: ['node']
+
+    # Receivers - where to send alerts
+    receivers:
+      # Default receiver (blackhole)
+      - name: 'default'
+        # No configuration - alerts are received but not sent anywhere
+
+      # Critical alerts - PagerDuty + Slack
+      - name: 'critical-alerts'
+        pagerduty_configs:
+          - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+            severity: 'critical'
+            description: '{{ .GroupLabels.alertname }}: {{ .CommonAnnotations.summary }}'
+            details:
+              firing: '{{ .Alerts.Firing | len }}'
+              resolved: '{{ .Alerts.Resolved | len }}'
+              group_labels: '{{ .GroupLabels }}'
+        slack_configs:
+          - channel: '#alerts-critical'
+            title: '{{ .GroupLabels.alertname }} ({{ .Status }})'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Labels.alertname }}
+              *Severity:* {{ .Labels.severity }}
+              *Summary:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            color: 'danger'
+            send_resolved: true
+
+      # Warning alerts - Slack only
+      - name: 'warning-alerts'
+        slack_configs:
+          - channel: '#alerts-warning'
+            title: '{{ .GroupLabels.alertname }} ({{ .Status }})'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Labels.alertname }}
+              *Severity:* {{ .Labels.severity }}
+              *Summary:* {{ .Annotations.summary }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+
+      # Ops team - email + Slack
+      - name: 'ops-team'
+        email_configs:
+          - to: 'ops-team@example.com'
+            from: 'alertmanager@example.com'
+            smarthost: 'smtp.example.com:587'
+            auth_username: 'alertmanager@example.com'
+            auth_password: 'YOUR_SMTP_PASSWORD'
+            headers:
+              Subject: '[Prometheus] {{ .GroupLabels.alertname }}'
+        slack_configs:
+          - channel: '#ops-team'
+            title: '{{ .GroupLabels.alertname }}'
+            text: '{{ .CommonAnnotations.description }}'

@@ -1,0 +1,98 @@
+name: Notify Slack
+description: Send deployment notifications to Slack channel
+
+inputs:
+  message:
+    description: 'Message to send to Slack'
+    required: true
+  status:
+    description: 'Job status (success, failure, etc.)'
+    required: true
+  webhook-url:
+    description: 'Slack webhook URL'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Determine message color
+      id: color
+      shell: bash
+      run: |
+        case "${{ inputs.status }}" in
+          success)
+            echo "color=good" >> $GITHUB_OUTPUT
+            echo "emoji=:white_check_mark:" >> $GITHUB_OUTPUT
+            ;;
+          failure)
+            echo "color=danger" >> $GITHUB_OUTPUT
+            echo "emoji=:x:" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "color=warning" >> $GITHUB_OUTPUT
+            echo "emoji=:warning:" >> $GITHUB_OUTPUT
+            ;;
+        esac
+
+    - name: Send Slack notification
+      shell: bash
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.webhook-url }}
+        MESSAGE: ${{ inputs.message }}
+        STATUS: ${{ inputs.status }}
+        COLOR: ${{ steps.color.outputs.color }}
+        EMOJI: ${{ steps.color.outputs.emoji }}
+      run: |
+        PAYLOAD=$(cat <<EOF
+        {
+          "attachments": [
+            {
+              "color": "${COLOR}",
+              "title": "${EMOJI} Deployment Notification",
+              "text": "${MESSAGE}",
+              "fields": [
+                {
+                  "title": "Status",
+                  "value": "${STATUS}",
+                  "short": true
+                },
+                {
+                  "title": "Repository",
+                  "value": "${{ github.repository }}",
+                  "short": true
+                },
+                {
+                  "title": "Branch",
+                  "value": "${{ github.ref_name }}",
+                  "short": true
+                },
+                {
+                  "title": "Commit",
+                  "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}...>",
+                  "short": true
+                },
+                {
+                  "title": "Triggered by",
+                  "value": "${{ github.actor }}",
+                  "short": true
+                },
+                {
+                  "title": "Workflow Run",
+                  "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>",
+                  "short": true
+                }
+              ],
+              "footer": "GitHub Actions",
+              "footer_icon": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+              "ts": $(date +%s)
+            }
+          ]
+        }
+        EOF
+        )
+
+        curl -X POST -H 'Content-type: application/json' \
+          --data "${PAYLOAD}" \
+          "${SLACK_WEBHOOK_URL}"
+
+        echo "✓ Slack notification sent"

@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  alerts.yml: |
+    groups:
+      - name: kubernetes_critical
+        interval: 30s
+        rules:
+          # Alert 1: Pod CrashLoopBackOff
+          - alert: PodCrashLooping
+            expr: |
+              rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+              component: kubernetes
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+              description: |
+                Pod {{ $labels.namespace }}/{{ $labels.pod }} (container: {{ $labels.container }})
+                has restarted {{ $value }} times in the last 15 minutes.
+                This indicates the container is failing to start or crashing repeatedly.
+              runbook_url: "https://runbooks.example.com/PodCrashLooping"
+              dashboard_url: "https://grafana.example.com/d/pod-status"
+
+          # Alert 2: High Container Memory Usage
+          - alert: ContainerHighMemory
+            expr: |
+              (
+                container_memory_working_set_bytes{container!="", container!="POD"}
+                /
+                container_spec_memory_limit_bytes{container!="", container!="POD"}
+              ) > 0.90
+            for: 5m
+            labels:
+              severity: critical
+              component: kubernetes
+            annotations:
+              summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} memory usage critical"
+              description: |
+                Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+                is using {{ $value | humanizePercentage }} of its memory limit.
+                Current usage: {{ with query "container_memory_working_set_bytes{namespace=\"$labels.namespace\",pod=\"$labels.pod\",container=\"$labels.container\"}" }}{{ . | first | value | humanize1024 }}B{{ end }}
+                Limit: {{ with query "container_spec_memory_limit_bytes{namespace=\"$labels.namespace\",pod=\"$labels.pod\",container=\"$labels.container\"}" }}{{ . | first | value | humanize1024 }}B{{ end }}
+              runbook_url: "https://runbooks.example.com/ContainerHighMemory"
+              dashboard_url: "https://grafana.example.com/d/container-resources"
+
+          # Alert 3: Node Disk Pressure
+          - alert: NodeDiskPressure
+            expr: |
+              kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+            for: 2m
+            labels:
+              severity: critical
+              component: kubernetes
+            annotations:
+              summary: "Node {{ $labels.node }} is under disk pressure"
+              description: |
+                Node {{ $labels.node }} has DiskPressure condition set to true.
+                This means the node is running out of disk space and may start evicting pods.
+                Check disk usage immediately.
+              runbook_url: "https://runbooks.example.com/NodeDiskPressure"
+              dashboard_url: "https://grafana.example.com/d/node-overview"
+
+          # Additional useful alert: Node NotReady
+          - alert: NodeNotReady
+            expr: |
+              kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+              component: kubernetes
+            annotations:
+              summary: "Node {{ $labels.node }} is not ready"
+              description: |
+                Node {{ $labels.node }} has been in NotReady state for more than 5 minutes.
+                Workloads on this node may be affected.
+              runbook_url: "https://runbooks.example.com/NodeNotReady"
+
+      - name: kubernetes_warnings
+        interval: 30s
+        rules:
+          # Warning: Pod pending too long
+          - alert: PodPendingTooLong
+            expr: |
+              kube_pod_status_phase{phase="Pending"} == 1
+            for: 10m
+            labels:
+              severity: warning
+              component: kubernetes
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been pending for too long"
+              description: |
+                Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in Pending state for more than 10 minutes.
+                Check for resource constraints, node selectors, or image pull issues.
+
+          # Warning: High memory usage (before critical)
+          - alert: ContainerMemoryUsageWarning
+            expr: |
+              (
+                container_memory_working_set_bytes{container!="", container!="POD"}
+                /
+                container_spec_memory_limit_bytes{container!="", container!="POD"}
+              ) > 0.75
+            for: 10m
+            labels:
+              severity: warning
+              component: kubernetes
+            annotations:
+              summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} memory usage high"
+              description: |
+                Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+                is using {{ $value | humanizePercentage }} of its memory limit.
+
+          # Warning: High CPU usage
+          - alert: ContainerCPUUsageHigh
+            expr: |
+              (
+                rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])
+                /
+                container_spec_cpu_quota{container!="", container!="POD"}
+                * 100000
+              ) > 90
+            for: 10m
+            labels:
+              severity: warning
+              component: kubernetes
+            annotations:
+              summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} CPU usage high"
+              description: |
+                Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+                is using {{ $value }}% of its CPU limit for more than 10 minutes.
+
+      - name: prometheus_self_monitoring
+        interval: 30s
+        rules:
+          # Alert if Prometheus is having trouble scraping targets
+          - alert: PrometheusTargetDown
+            expr: |
+              up == 0
+            for: 5m
+            labels:
+              severity: warning
+              component: prometheus
+            annotations:
+              summary: "Prometheus target {{ $labels.job }}/{{ $labels.instance }} is down"
+              description: |
+                Prometheus has not been able to scrape {{ $labels.job }}/{{ $labels.instance }}
+                for more than 5 minutes.
+
+          # Alert if Prometheus is using too much memory
+          - alert: PrometheusHighMemory
+            expr: |
+              process_resident_memory_bytes{job="prometheus"} > 8e9
+            for: 10m
+            labels:
+              severity: warning
+              component: prometheus
+            annotations:
+              summary: "Prometheus memory usage is high"
+              description: |
+                Prometheus is using {{ $value | humanize1024 }}B of memory.
+                This may indicate a cardinality explosion or retention issues.
+
+          # Alert if Prometheus storage is running low
+          - alert: PrometheusStorageLow
+            expr: |
+              (
+                kubelet_volume_stats_available_bytes{persistentvolumeclaim="prometheus-storage"}
+                /
+                kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="prometheus-storage"}
+              ) < 0.15
+            for: 10m
+            labels:
+              severity: warning
+              component: prometheus
+            annotations:
+              summary: "Prometheus storage is running low"
+              description: |
+                Prometheus storage has less than 15% space remaining.
+                Consider increasing retention settings or storage size.

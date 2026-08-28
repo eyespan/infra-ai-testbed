@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: api-prod
+  labels:
+    app: api
+data:
+  DB_HOST: postgres.prod.svc.cluster.local
+  # Secrets removed - now stored in Secret resource

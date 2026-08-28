@@ -1,0 +1,85 @@
+{
+  "format_version": "1.2",
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.logs",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "logs",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "bucket": "acme-logs-encrypted",
+          "tags": {
+            "Environment": "staging",
+            "Owner": "platform",
+            "CostCenter": "eng"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_server_side_encryption_configuration.logs",
+      "mode": "managed",
+      "type": "aws_s3_bucket_server_side_encryption_configuration",
+      "name": "logs",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "bucket": "aws_s3_bucket.logs.id",
+          "rule": [
+            {
+              "apply_server_side_encryption_by_default": {
+                "sse_algorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_security_group.bastion",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "bastion",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "ingress": [
+            {
+              "from_port": 22,
+              "to_port": 22,
+              "protocol": "tcp",
+              "cidr_blocks": ["10.0.0.0/8"]
+            }
+          ],
+          "tags": {
+            "Environment": "staging",
+            "Owner": "platform",
+            "CostCenter": "eng"
+          }
+        }
+      }
+    },
+    {
+      "address": "aws_eks_cluster.main",
+      "mode": "managed",
+      "type": "aws_eks_cluster",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "main",
+          "enabled_cluster_log_types": ["api", "audit", "authenticator", "controllerManager", "scheduler"],
+          "tags": {
+            "Environment": "production",
+            "Owner": "platform",
+            "CostCenter": "eng"
+          }
+        }
+      }
+    }
+  ]
+}

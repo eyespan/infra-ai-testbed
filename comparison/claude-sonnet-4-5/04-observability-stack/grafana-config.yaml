@@ -1,0 +1,251 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+        jsonData:
+          timeInterval: 30s
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-config
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cluster-overview
+  namespace: monitoring
+data:
+  cluster-overview.json: |
+    {
+      "dashboard": {
+        "title": "Kubernetes Cluster Overview",
+        "uid": "cluster-overview",
+        "tags": ["kubernetes", "cluster"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+            "type": "stat",
+            "title": "Total Nodes",
+            "targets": [
+              {
+                "expr": "count(kube_node_info)",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "graphMode": "none",
+              "colorMode": "value"
+            }
+          },
+          {
+            "id": 2,
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+            "type": "stat",
+            "title": "Total Pods",
+            "targets": [
+              {
+                "expr": "count(kube_pod_info)",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "graphMode": "none",
+              "colorMode": "value"
+            }
+          },
+          {
+            "id": 3,
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+            "type": "stat",
+            "title": "Pod Restarts (Last Hour)",
+            "targets": [
+              {
+                "expr": "sum(increase(kube_pod_container_status_restarts_total[1h]))",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "green"},
+                    {"value": 5, "color": "yellow"},
+                    {"value": 10, "color": "red"}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 4,
+            "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+            "type": "stat",
+            "title": "Nodes Not Ready",
+            "targets": [
+              {
+                "expr": "count(kube_node_status_condition{condition=\"Ready\",status=\"true\"} == 0)",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "graphMode": "none",
+              "colorMode": "value"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "green"},
+                    {"value": 1, "color": "red"}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 5,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+            "type": "graph",
+            "title": "CPU Usage by Node",
+            "targets": [
+              {
+                "expr": "sum by (node) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))",
+                "legendFormat": "{{ node }}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "short", "label": "Cores"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 6,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+            "type": "graph",
+            "title": "Memory Usage by Node",
+            "targets": [
+              {
+                "expr": "sum by (node) (container_memory_working_set_bytes{container!=\"\"})",
+                "legendFormat": "{{ node }}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "bytes", "label": "Memory"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 7,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+            "type": "graph",
+            "title": "Network I/O by Namespace",
+            "targets": [
+              {
+                "expr": "sum by (namespace) (rate(container_network_receive_bytes_total[5m]))",
+                "legendFormat": "{{ namespace }} (RX)",
+                "refId": "A"
+              },
+              {
+                "expr": "sum by (namespace) (rate(container_network_transmit_bytes_total[5m]))",
+                "legendFormat": "{{ namespace }} (TX)",
+                "refId": "B"
+              }
+            ],
+            "yaxes": [
+              {"format": "Bps", "label": "Bytes/sec"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 8,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+            "type": "graph",
+            "title": "Disk I/O by Node",
+            "targets": [
+              {
+                "expr": "sum by (instance) (rate(node_disk_read_bytes_total[5m]))",
+                "legendFormat": "{{ instance }} (Read)",
+                "refId": "A"
+              },
+              {
+                "expr": "sum by (instance) (rate(node_disk_written_bytes_total[5m]))",
+                "legendFormat": "{{ instance }} (Write)",
+                "refId": "B"
+              }
+            ],
+            "yaxes": [
+              {"format": "Bps", "label": "Bytes/sec"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 9,
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+            "type": "table",
+            "title": "Pod Status by Namespace",
+            "targets": [
+              {
+                "expr": "sum by (namespace, phase) (kube_pod_status_phase)",
+                "format": "table",
+                "instant": true,
+                "refId": "A"
+              }
+            ],
+            "transformations": [
+              {
+                "id": "organize",
+                "options": {
+                  "excludeByName": {"Time": true},
+                  "indexByName": {},
+                  "renameByName": {
+                    "namespace": "Namespace",
+                    "phase": "Phase",
+                    "Value": "Count"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }

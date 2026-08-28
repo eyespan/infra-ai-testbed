@@ -1,0 +1,73 @@
+name: Deploy to Environment
+description: Deploy application to specified environment (staging or production)
+
+inputs:
+  environment:
+    description: 'Target environment (staging or production)'
+    required: true
+  image-tag:
+    description: 'Docker image tag to deploy'
+    required: true
+  registry:
+    description: 'Container registry URL'
+    required: true
+  app-name:
+    description: 'Application name'
+    required: true
+  deploy-token:
+    description: 'Deployment authentication token'
+    required: true
+  kubectl-config:
+    description: 'Kubernetes config for target environment'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      shell: bash
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ inputs.kubectl-config }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Verify cluster connection
+      shell: bash
+      run: |
+        kubectl cluster-info
+        kubectl get nodes
+
+    - name: Deploy application
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        REGISTRY: ${{ inputs.registry }}
+        APP_NAME: ${{ inputs.app-name }}
+      run: |
+        echo "Deploying ${APP_NAME} to ${ENVIRONMENT}"
+        echo "Image: ${REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
+
+        # Update the deployment with new image
+        kubectl set image deployment/${APP_NAME} \
+          ${APP_NAME}=${REGISTRY}/${APP_NAME}:${IMAGE_TAG} \
+          -n ${ENVIRONMENT}
+
+        # Wait for rollout to complete
+        kubectl rollout status deployment/${APP_NAME} -n ${ENVIRONMENT} --timeout=5m
+
+        # Verify deployment
+        kubectl get pods -n ${ENVIRONMENT} -l app=${APP_NAME}
+
+        echo "✓ Deployment completed successfully"
+
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: |
+        rm -f $HOME/.kube/config
