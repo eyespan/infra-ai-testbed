@@ -13,3 +13,4 @@ baselines/*
 *.zip
 .idea/
 .vscode/
+claude-bedrock-test/*
