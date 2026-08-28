@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: {storage: 5Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: grafana}
+  template:
+    metadata:
+      labels: {app: grafana}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 472, fsGroup: 472}
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.1.4
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD__FILE
+              value: /etc/grafana-secrets/admin
+          resources:
+            requests: {cpu: 200m, memory: 256Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/grafana}
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasource.yaml, subPath: datasource.yaml, readOnly: true}
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml, subPath: dashboards.yaml, readOnly: true}
+            - {name: dashboard, mountPath: /var/lib/grafana/dashboards, readOnly: true}
+            - {name: admin-password, mountPath: /etc/grafana-secrets, readOnly: true}
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: grafana-data}}
+        - {name: provisioning, configMap: {name: grafana-provisioning}}
+        - {name: dashboard, configMap: {name: grafana-cluster-overview}}
+        - {name: admin-password, secret: {secretName: grafana-admin}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector: {app: grafana}
+  ports:
+    - {name: http, port: 3000, targetPort: http}

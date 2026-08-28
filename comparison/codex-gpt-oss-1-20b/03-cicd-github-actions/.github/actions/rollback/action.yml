@@ -1,0 +1,22 @@
+name: Roll back Kubernetes workload
+description: Revert the last completed Deployment rollout and verify it.
+inputs:
+  environment:
+    required: true
+  cluster-name:
+    required: true
+  app:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        CLUSTER_NAME: ${{ inputs.cluster-name }}
+        APP: ${{ inputs.app }}
+      run: |
+        set -euo pipefail
+        aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+        kubectl rollout undo "deployment/$APP" --namespace "$TARGET_ENVIRONMENT"
+        kubectl rollout status "deployment/$APP" --namespace "$TARGET_ENVIRONMENT" --timeout=5m

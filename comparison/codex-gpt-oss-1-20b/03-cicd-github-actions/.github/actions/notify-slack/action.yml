@@ -1,0 +1,19 @@
+name: Notify Slack
+description: Send a deployment status through an environment-scoped Slack webhook.
+inputs:
+  webhook-url:
+    required: true
+  message:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+        MESSAGE: ${{ inputs.message }}
+      run: |
+        set -euo pipefail
+        test -n "$WEBHOOK_URL"
+        jq -nc --arg text "$MESSAGE" '{text: $text}' |
+          curl --fail --silent --show-error -X POST -H 'Content-type: application/json' --data @- "$WEBHOOK_URL"

@@ -1,0 +1,88 @@
+schema_version: 1
+
+run:
+  model: "codex"
+  model_version: "0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock"
+  task_id: "02"
+  date: "2026-08-28"
+  agent_had_shell: true
+  wall_clock_minutes: 2
+  notes: "Codex CLI 0.150.1 executed against OpenAI gpt-oss-20b via Amazon Bedrock. Produced hardened Kubernetes manifests and SECURITY_REVIEW.md. kubectl dry-run could not complete because sandbox networking could not reach the EKS API, but local YAML parsing and static security scans passed."
+
+mechanical:
+  terraform_validate: na
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: pass
+
+scores:
+  correctness: 4.5
+  security: 5.0
+  reliability: 4.5
+  edge_cases: 4.5
+  judgment: 4.5
+  observability: 4.5
+
+critical_security_fail: false
+critical_security_notes: "No plaintext production secret, public SSH/RDP, or unjustified cluster-admin workload binding. Static privilege/RBAC grep matches are only explanatory references inside SECURITY_REVIEW.md and comments, not active manifest configuration."
+
+findings:
+  - severity: medium
+    title: "Image is version-tagged but not pinned by digest"
+    evidence: "deployment.yaml uses image: myregistry/api:v1.0.0. SECURITY_REVIEW.md acknowledges that an immutable digest should be verified before production."
+    dimension: security
+
+  - severity: low
+    title: "NetworkPolicy relies on documented environment assumptions"
+    evidence: "networkpolicy.yaml assumes ingress-nginx namespace, kube-dns label k8s-app=kube-dns, and PostgreSQL in namespace prod on TCP 5432. SECURITY_REVIEW.md explicitly documents these assumptions."
+    dimension: reliability
+
+  - severity: low
+    title: "kubectl schema validation could not be completed against the cluster"
+    evidence: "Codex reported that kubectl --dry-run=client attempted API discovery but sandbox networking could not reach the EKS endpoint. Local YAML parsing subsequently passed for all manifests."
+    dimension: correctness
+
+edge_cases_identified:
+  - "Rolling update with 2 replicas and PDB minAvailable=1"
+  - "Ingress controller namespace assumption explicitly documented"
+  - "Linux securityContext fields kept appropriate to Linux workload"
+  - "ConfigMap checksum annotation used to trigger controlled rollout"
+  - "terminationGracePeriodSeconds configured"
+  - "Topology spread configured"
+  - "Memory requests and limits both configured"
+  - "Mutable image tag risk acknowledged"
+  - "NetworkPolicy DNS egress preserved"
+  - "External secret dependency explicitly documented"
+
+edge_cases_missed:
+  - "The actual image digest is not pinned in the supplied Deployment"
+  - "NetworkPolicy selectors and PostgreSQL port remain deployment-specific assumptions requiring verification"
+
+strengths:
+  - "Comprehensive security hardening rather than deleting insecure configuration"
+  - "DB_PASSWORD moved to an external Secret reference without committing a plaintext value"
+  - "Dedicated ServiceAccount with automountServiceAccountToken disabled"
+  - "Removed privileged execution and disabled privilege escalation"
+  - "runAsNonRoot, explicit UID/GID, fsGroup, and RuntimeDefault seccomp configured"
+  - "readOnlyRootFilesystem paired with writable emptyDir for /tmp"
+  - "Cluster-admin access removed and workload receives zero Kubernetes API permissions"
+  - "ClusterIP Service used instead of public LoadBalancer"
+  - "NetworkPolicy explicitly preserves DNS and database connectivity"
+  - "PDB, rolling update controls, termination grace period, and topology spread included"
+  - "Security review documents assumptions and remaining deployment prerequisites"
+  - "All YAML manifests passed local YAML parsing"
+  - "No critical security failure"
+
+weaknesses:
+  - "Image is not pinned to an immutable digest"
+  - "Some NetworkPolicy selectors depend on environment-specific labels and namespaces"
+  - "Cluster-backed kubectl schema validation could not be completed because network access was unavailable"
+  - "SECURITY_REVIEW.md contains strings such as privileged:true and cluster-admin that can trigger naive static grep scans, although they describe removed starter issues"
+  - "The review's claim that rollback provides zero downtime is stronger than the evidence guarantees"
+
+merge_decision: yes_with_changes
+merge_rationale: "Strong, production-oriented Kubernetes hardening that addresses the explicit starter defects and expected behaviors. YAML parsing and static security scans pass. Would merge after normal review, with the image pinned by digest and environment-specific NetworkPolicy assumptions verified before production deployment."
+
+overall: 4.58
+passed: true

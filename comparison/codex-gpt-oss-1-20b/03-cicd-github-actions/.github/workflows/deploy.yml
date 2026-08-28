@@ -1,0 +1,175 @@
+name: Test, scan, and deploy payments-api
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# This serializes main deployments. PRs cannot deploy, and are isolated by ref.
+concurrency:
+  group: payments-api-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  APP: payments-api
+  REGISTRY: ghcr.io/example
+  NODE_VERSION: "20"
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - run: npm ci
+      - run: npm test
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_PASSWORD: test-only
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+      - if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes --remove-orphans
+
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # The Trivy image must be replaced by an approved immutable digest in the
+      # platform's image allowlist. exit-code 1 intentionally fails this job.
+      - run: >-
+          docker run --rm --volume "$PWD:/src:ro" --workdir /src
+          aquasec/trivy:0.57.1 fs --exit-code 1 --severity HIGH,CRITICAL .
+
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, integration, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: image
+        run: echo "image=${REGISTRY}/${APP}:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GitHub Container Registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and push immutable commit image
+        run: |
+          docker build --tag "${{ steps.image.outputs.image }}" .
+          docker push "${{ steps.image.outputs.image }}"
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/configure-aws-oidc
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/deploy
+        with:
+          environment: staging
+          cluster-name: ${{ vars.KUBERNETES_CLUSTER_NAME }}
+          app: ${{ env.APP }}
+          image: ${{ needs.build.outputs.image }}
+      - if: always()
+        uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          message: "staging ${{ needs.build.outputs.image }}: ${{ job.status }}"
+
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, deploy-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Configure required reviewers in repository Settings > Environments > production.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/configure-aws-oidc
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/deploy
+        with:
+          environment: production
+          cluster-name: ${{ vars.KUBERNETES_CLUSTER_NAME }}
+          app: ${{ env.APP }}
+          image: ${{ needs.build.outputs.image }}
+      - if: always()
+        uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          message: "production ${{ needs.build.outputs.image }}: ${{ job.status }}"
+
+  rollback-production:
+    if: ${{ failure() && needs.deploy-production.result == 'failure' }}
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/configure-aws-oidc
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/rollback
+        with:
+          environment: production
+          cluster-name: ${{ vars.KUBERNETES_CLUSTER_NAME }}
+          app: ${{ env.APP }}
