@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-role
+  namespace: api-prod
+  labels:
+    app: api
+rules:
+  # Minimal permissions - only what's needed for the application
+  # This service doesn't need to access the Kubernetes API in normal operation
+  # If API access is needed, add specific resources/verbs here
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+    # Restrict to specific ConfigMap if possible
+    resourceNames: ["api-config"]

@@ -1,0 +1,85 @@
+---
+# ServiceMonitor for the payments sample app
+# This assumes you have the Prometheus Operator installed
+# If not using the operator, use the pod annotation approach in prometheus-config.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: payments-api
+  namespace: prod
+  labels:
+    app: payments-api
+    release: prometheus
+spec:
+  # Select services with these labels
+  selector:
+    matchLabels:
+      app: payments-api
+  # Which namespaces to search for services
+  namespaceSelector:
+    matchNames:
+      - prod
+  # Endpoint configuration
+  endpoints:
+    - port: http  # Name of the port in the Service
+      path: /metrics  # Metrics endpoint path
+      interval: 30s  # Scrape interval
+      scrapeTimeout: 10s
+      # Relabeling to add custom labels
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+      # Metric relabeling to reduce cardinality
+      metricRelabelings:
+        # Drop metrics with high cardinality labels
+        - sourceLabels: [__name__]
+          regex: 'http_request_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [user_id]
+          regex: '.*'
+          action: labeldrop
+---
+# Example Service for the payments app
+# This should match the ServiceMonitor selector
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-api
+  namespace: prod
+  labels:
+    app: payments-api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app: payments-api
+---
+# Alternative: If not using Prometheus Operator, use annotations on pods
+# The prometheus-config.yaml includes a scrape config that discovers pods with these annotations
+apiVersion: v1
+kind: Pod
+metadata:
+  name: payments-api-example
+  namespace: prod
+  annotations:
+    prometheus.io/scrape: "true"  # Enable scraping for this pod
+    prometheus.io/port: "3000"     # Port to scrape
+    prometheus.io/path: "/metrics" # Path to metrics endpoint
+  labels:
+    app: payments-api
+spec:
+  containers:
+    - name: api
+      image: myregistry/payments-api:v1.0.0
+      ports:
+        - name: http
+          containerPort: 3000
+      # This is just an example - not a complete pod spec

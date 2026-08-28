@@ -8,10 +8,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 .DS_Store
-comparison/*
-!comparison/README.md
 baselines/*
 !baselines/README.md
 *.zip
 .idea/
 .vscode/
+claude-bedrock-test/*

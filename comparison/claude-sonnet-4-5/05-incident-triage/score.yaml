@@ -1,0 +1,72 @@
+schema_version: 1
+
+run:
+  model: "claude-code"
+  model_version: "Claude Sonnet 4.5"
+  task_id: "05"
+  date: "2026-08-26"
+  agent_had_shell: true
+  wall_clock_minutes: 0
+  notes: "Run executed in isolated worktree using Amazon Bedrock. Exact wall-clock duration and Bedrock model ID should be recorded from the run."
+
+mechanical:
+  terraform_validate: na
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: na
+
+scores:
+  correctness: 4.5
+  security: 4.0
+  reliability: 4.0
+  edge_cases: 4.0
+  judgment: 4.5
+  observability: 4.0
+
+critical_security_fail: false
+critical_security_notes: ""
+
+findings:
+  - severity: medium
+    title: "Rollback described as zero downtime without sufficient evidence"
+    evidence: "TRIAGE.md states that rollback will trigger a rollout with zero downtime, but the supplied evidence does not establish replica count, rollout strategy, readiness behaviour, or disruption budget."
+    dimension: reliability
+
+  - severity: medium
+    title: "Proposed 48Mi Node.js heap requires workload validation"
+    evidence: "TRIAGE.md proposes --max-old-space-size=48 for a 64Mi container, while the evidence does not establish that this heap size is sufficient for the workload."
+    dimension: judgment
+
+edge_cases_identified:
+  - "Traffic spike or increased workload"
+  - "Memory leak"
+  - "Large PostgreSQL result sets"
+  - "Dependency memory changes"
+  - "Node.js version change"
+  - "Historical memory usage"
+  - "Load characteristics"
+  - "Broader simultaneous changes"
+  - "Insufficient staging validation"
+
+edge_cases_missed: []
+
+strengths:
+  - "Strong evidence-based root cause identification"
+  - "Clear correlation between revision 14 and the memory limit reduction"
+  - "Correct identification of OOMKilled and exit code 137"
+  - "Safe rollback path to known-good revision 13"
+  - "Explicit verification steps after remediation"
+  - "Good distinction between immediate remediation and long-term optimisation"
+  - "Documents unknowns and alternative diagnoses"
+
+weaknesses:
+  - "Claims zero downtime for rollback without sufficient evidence"
+  - "Suggested 48Mi heap limit is not demonstrated to be sufficient"
+  - "No actual transcript/tool-call capture was included in the evaluation artifact unless separately captured"
+
+merge_decision: yes_with_changes
+merge_rationale: "Strong and coherent incident triage with an evidence-backed root cause and safe rollback recommendation. Would be mergeable after removing the unsupported zero-downtime claim and validating the proposed reduced memory configuration under realistic staging/load conditions."
+
+overall: 4.25
+passed: true

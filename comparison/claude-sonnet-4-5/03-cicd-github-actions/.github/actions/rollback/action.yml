@@ -1,0 +1,70 @@
+name: Rollback Deployment
+description: Rollback deployment to previous version on failure
+
+inputs:
+  environment:
+    description: 'Target environment to rollback'
+    required: true
+  deploy-token:
+    description: 'Deployment authentication token'
+    required: true
+  kubectl-config:
+    description: 'Kubernetes config for target environment'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      shell: bash
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ inputs.kubectl-config }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Get current deployment state
+      id: deployment-state
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        # Get the current deployment
+        CURRENT_IMAGE=$(kubectl get deployment payments-api -n ${ENVIRONMENT} -o jsonpath='{.spec.template.spec.containers[0].image}')
+        echo "current-image=${CURRENT_IMAGE}" >> $GITHUB_OUTPUT
+
+        # Get rollout history
+        kubectl rollout history deployment/payments-api -n ${ENVIRONMENT}
+
+    - name: Perform rollback
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        echo "⚠️  Deployment failed. Initiating rollback..."
+        echo "Current image: ${{ steps.deployment-state.outputs.current-image }}"
+
+        # Undo the last rollout
+        kubectl rollout undo deployment/payments-api -n ${ENVIRONMENT}
+
+        # Wait for rollback to complete
+        kubectl rollout status deployment/payments-api -n ${ENVIRONMENT} --timeout=5m
+
+        # Verify rollback
+        ROLLED_BACK_IMAGE=$(kubectl get deployment payments-api -n ${ENVIRONMENT} -o jsonpath='{.spec.template.spec.containers[0].image}')
+        echo "Rolled back to: ${ROLLED_BACK_IMAGE}"
+
+        # Verify pods are healthy
+        kubectl get pods -n ${ENVIRONMENT} -l app=payments-api
+
+        echo "✓ Rollback completed successfully"
+
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: |
+        rm -f $HOME/.kube/config
