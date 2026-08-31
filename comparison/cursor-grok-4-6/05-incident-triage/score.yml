@@ -1,0 +1,113 @@
+task: 05-incident-triage
+model: cursor-grok-4-6
+
+scores:
+  correctness: 5
+  security: 5
+  reliability: 5
+  edge_cases: 5
+  engineering_judgment: 5
+  observability_operations: 5
+
+overall: 5.0
+
+pass: true
+
+merge_decision: "Yes"
+
+summary: >
+  Excellent incident triage. The analysis correctly identifies the
+  CrashLoopBackOff as an OOMKilled container with exit code 137 and
+  traces the failure to the revision 14 reduction from 256Mi to 64Mi
+  while NODE_OPTIONS still permits a 256MB Node.js heap. The response
+  correlates pod state, termination details, logs, resource configuration,
+  probes, rollout history, and running-vs-declared configuration. It
+  provides safe rollback and verification steps, explicitly rejects
+  unsafe remediation, documents uncertainty, blast radius, and several
+  alternative failure modes.
+
+evidence:
+  correctness:
+    - >
+      Correctly identifies OOMKilled / exit 137 and the approximately
+      8-second container lifetime.
+    - >
+      Correctly correlates 64Mi container memory with
+      --max-old-space-size=256.
+    - >
+      Correctly identifies revision 14 as the change that reduced memory
+      from 256Mi to 64Mi.
+    - >
+      Correctly distinguishes OOM failure from image-pull and probe
+      failures.
+
+  security:
+    - >
+      Explicitly rejects privileged containers and hostPID/hostNetwork
+      debugging as remediation.
+    - >
+      Explicitly rejects destructive node deletion.
+    - >
+      Recommends modifying the Deployment rather than manipulating the
+      live Pod as the primary remediation path.
+    - >
+      No production secrets or unsafe privileged configuration are
+      introduced.
+
+  reliability:
+    - >
+      Provides immediate rollback to the known-good revision.
+    - >
+      Provides verification commands for rollout status, readiness,
+      OOMKilled recurrence, and application logs.
+    - >
+      Documents the single-replica blast radius and outage implications.
+    - >
+      Provides both immediate mitigation and longer-term remediation.
+
+  edge_cases:
+    - >
+      Considers memory leak versus chronic under-limit behavior.
+    - >
+      Considers sidecar versus main-container OOM.
+    - >
+      Considers heap-versus-cgroup mismatch.
+    - >
+      Considers probe-induced restart.
+    - >
+      Considers image/config regression.
+    - >
+      Considers node-level memory pressure.
+    - >
+      Explicitly identifies unknown previous-container logs and missing
+      metrics rather than inventing them.
+
+  engineering_judgment:
+    - >
+      Clearly separates evidence from assumptions and unknowns.
+    - >
+      Avoids claiming unsupported metrics or cluster state.
+    - >
+      Gives a rollback-first production response rather than immediately
+      proposing a speculative tuning change.
+    - >
+      Recommends right-sizing only after collecting actual memory usage.
+    - >
+      Calls out the cost-saving change as a change-control concern.
+
+  observability_operations:
+    - >
+      Uses a coherent end-to-end triage sequence from pod state through
+      describe output, logs, deployment configuration, probes, and
+      rollout history.
+    - >
+      Includes concrete verification commands after remediation.
+    - >
+      Calls out missing metrics and historical logs as operational gaps.
+    - >
+      Includes downstream SLO/error-rate/error-budget monitoring in the
+      verification plan.
+
+notes:
+  critical_security_fail: false
+  evidence_required_for_scores_below_4: false

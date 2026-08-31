@@ -1,0 +1,114 @@
+schema_version: 1
+
+run:
+  model: "cursor"
+  model_version: "Grok 4.6"
+  task_id: "02"
+  date: "2026-08-31"
+  agent_had_shell: true
+  wall_clock_minutes: na
+  notes: "Cursor executed the Kubernetes security hardening task using Grok 4.6. Produced hardened Kubernetes manifests and SECURITY_REVIEW.md. The generated solution addresses the starter security issues and the explicit reliability/edge-case criteria. Cluster-backed Kubernetes schema validation was not independently performed during scoring."
+
+mechanical:
+  terraform_validate: na
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: partial
+
+scores:
+  correctness: 4.5
+  security: 4.5
+  reliability: 5.0
+  edge_cases: 4.5
+  judgment: 5.0
+  observability: 4.5
+
+critical_security_fail: false
+critical_security_notes: "No plaintext production credential is present, the workload does not use cluster-admin, the default ServiceAccount is not used, privileged execution is disabled, privilege escalation is disabled, and the workload runs as non-root with RuntimeDefault seccomp and dropped capabilities."
+
+findings:
+  - severity: medium
+    title: "Image is not pinned to an immutable digest"
+    evidence: "deployment.yaml uses image: myregistry/api:1.0.0. The security review explicitly documents that a registry digest must be pinned before production, but the supplied Deployment itself remains tag-based."
+    dimension: security
+
+  - severity: medium
+    title: "NetworkPolicy depends on environment-specific namespace and label assumptions"
+    evidence: "networkpolicy.yaml assumes ingress-nginx, kube-system/kube-dns with k8s-app=kube-dns, and PostgreSQL in namespace prod on TCP 5432. SECURITY_REVIEW.md documents these assumptions, but they still require verification in the target cluster."
+    dimension: edge_cases
+
+  - severity: low
+    title: "Health endpoint is based on an explicit task assumption rather than demonstrated application evidence"
+    evidence: "Both probes use /healthz on port 3000. SECURITY_REVIEW.md documents this as an assumption because the starter did not provide an application health contract."
+    dimension: correctness
+
+  - severity: low
+    title: "Checksum values require regeneration when configuration changes"
+    evidence: "Deployment includes checksum/config and checksum/secret pod-template annotations, correctly addressing the rollout-trigger criterion. However, the values are static hashes and must be regenerated whenever the corresponding configuration changes."
+    dimension: edge_cases
+
+  - severity: low
+    title: "Cluster-backed Kubernetes schema validation was not independently demonstrated"
+    evidence: "The artifacts were reviewed statically, but no successful kubectl schema validation against a reachable Kubernetes API was provided as part of the Task 02 execution evidence."
+    dimension: correctness
+
+edge_cases_identified:
+  - "Rolling update with 2 replicas and PDB minAvailable=1"
+  - "Ingress controller namespace assumption"
+  - "Linux securityContext fields"
+  - "ConfigMap checksum annotation"
+  - "Secret checksum annotation"
+  - "terminationGracePeriodSeconds"
+  - "Topology spread constraints"
+  - "Memory requests and limits"
+  - "NetworkPolicy DNS egress"
+  - "Database egress"
+  - "ClusterIP Service with ingress TLS termination"
+  - "Mutable image tag versus immutable digest"
+  - "ServiceAccount token automount disabled"
+  - "No Kubernetes API permissions required by the workload"
+
+edge_cases_missed:
+  - "Actual immutable image digest is not supplied"
+  - "Ingress-nginx namespace and selector assumptions require verification"
+  - "CoreDNS label assumption requires verification"
+  - "PostgreSQL namespace/port assumption requires verification"
+
+strengths:
+  - "Moved DB_PASSWORD from plaintext Deployment configuration to secretKeyRef"
+  - "Secret manifest explicitly marks the sample value as non-production and directs production use toward a secret store"
+  - "Dedicated ServiceAccount is used instead of default"
+  - "ServiceAccount token automount is disabled"
+  - "No Role or ClusterRoleBinding is granted because the application does not require Kubernetes API access"
+  - "runAsNonRoot, explicit UID/GID, fsGroup, and RuntimeDefault seccomp are configured"
+  - "allowPrivilegeEscalation is explicitly disabled"
+  - "privileged execution is explicitly disabled"
+  - "All Linux capabilities are dropped"
+  - "readOnlyRootFilesystem is paired with emptyDir for /tmp"
+  - "Image no longer uses :latest"
+  - "ClusterIP Service is used instead of LoadBalancer"
+  - "NetworkPolicy restricts ingress to ingress-nginx"
+  - "NetworkPolicy explicitly preserves DNS and PostgreSQL connectivity"
+  - "PDB minAvailable=1 is compatible with replicas=2"
+  - "terminationGracePeriodSeconds is configured"
+  - "Topology spread constraints are configured"
+  - "CPU and memory requests and limits are both configured"
+  - "Liveness and readiness probes use the named HTTP port and /healthz"
+  - "ConfigMap and Secret checksum annotations trigger pod-template changes"
+  - "SECURITY_REVIEW.md documents every starter issue and the relevant assumptions"
+
+weaknesses:
+  - "Image is version-tagged but not pinned to an immutable digest"
+  - "NetworkPolicy depends on environment-specific namespace and label conventions"
+  - "Health endpoint is assumed rather than verified against application source"
+  - "Checksum values must be regenerated when configuration changes"
+  - "Cluster-backed Kubernetes schema validation was not independently demonstrated"
+
+merge_decision: yes_with_changes
+
+merge_rationale: "Very strong Kubernetes security hardening that addresses the major starter vulnerabilities and essentially all explicit reliability requirements. The remaining changes are primarily production-readiness refinements: pin the image to an immutable digest and verify the environment-specific NetworkPolicy and application health-endpoint assumptions."
+
+overall: 4.67
+
+passed: true

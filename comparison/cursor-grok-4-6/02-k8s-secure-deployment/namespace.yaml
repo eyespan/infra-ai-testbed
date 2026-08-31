@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api
+  labels:
+    app.kubernetes.io/name: api
+    # Lets NetworkPolicies select this namespace without extra labels.
+    kubernetes.io/metadata.name: api

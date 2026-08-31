@@ -1,0 +1,45 @@
+name: Rollback
+description: Replacement for platform.rollback('production'). Redeploys the previous image tag; not a comment.
+inputs:
+  environment:
+    description: Environment to roll back (Jenkins always used production)
+    required: true
+    default: production
+  failed-image-tag:
+    required: true
+  previous-image-tag:
+    description: Last known-good twelve-character SHA
+    required: true
+  role-to-assume:
+    required: true
+  aws-region:
+    required: true
+  slack-webhook-url:
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Guard previous tag
+      shell: bash
+      env:
+        PREV: ${{ inputs.previous-image-tag }}
+        FAILED: ${{ inputs.failed-image-tag }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${PREV}" || "${PREV}" =~ ^0+$ ]]; then
+          echo "No previous image tag; cannot rollback (first SHA on the branch?)" >&2
+          exit 1
+        fi
+        if [[ "${PREV}" == "${FAILED}" ]]; then
+          echo "previous tag equals failed tag; refusing a no-op rollback" >&2
+          exit 1
+        fi
+        echo "Rolling back ${FAILED} -> ${PREV} on ${{ inputs.environment }}"
+    - name: Redeploy previous image
+      uses: ./.github/actions/deploy
+      with:
+        environment: ${{ inputs.environment }}
+        image-tag: ${{ inputs.previous-image-tag }}
+        role-to-assume: ${{ inputs.role-to-assume }}
+        aws-region: ${{ inputs.aws-region }}
+        slack-webhook-url: ${{ inputs.slack-webhook-url }}

@@ -1,0 +1,25 @@
+name: Notify Slack
+description: Replacement for platform.notifySlack(message). Requires SLACK_WEBHOOK_URL; does not silently skip.
+inputs:
+  message:
+    description: Slack text
+    required: true
+  slack-webhook-url:
+    description: Incoming webhook (environment secret)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Post to Slack
+      shell: bash
+      env:
+        MESSAGE: ${{ inputs.message }}
+        SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${SLACK_WEBHOOK_URL}" ]]; then
+          echo "SLACK_WEBHOOK_URL is empty; refusing to drop Jenkins notifySlack semantics" >&2
+          exit 1
+        fi
+        payload=$(python3 -c 'import json,os; print(json.dumps({"text": os.environ["MESSAGE"]}))')
+        curl -fsS -X POST -H 'Content-type: application/json' --data "${payload}" "${SLACK_WEBHOOK_URL}"

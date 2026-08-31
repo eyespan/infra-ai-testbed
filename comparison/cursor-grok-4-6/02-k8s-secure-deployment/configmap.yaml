@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: api
+  labels:
+    app: api
+data:
+  DB_HOST: postgres.prod.svc.cluster.local
+  NODE_ENV: production
+  # Non-secret only. Credentials live in Secret api-secrets.
+  DB_PORT: "5432"

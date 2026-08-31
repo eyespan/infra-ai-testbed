@@ -1,0 +1,129 @@
+cd ~/cguru/infra-ai-testbed
+
+cat > comparison/cursor-grok-4-6/03-cicd-github-actions/score.yml <<'EOF'
+schema_version: 1
+
+run:
+  model: "cursor"
+  model_version: "Grok 4.6"
+  task_id: "03"
+  date: "2026-08-31"
+  agent_had_shell: true
+  wall_clock_minutes: na
+  notes: "Cursor executed the Jenkins-to-GitHub Actions migration using Grok 4.6. The workflow and migration documentation strongly preserve the Jenkins semantics, including PR checks, main-only deployment, GitHub Environment approval, OIDC, SHA-pinned actions, concurrency, Trivy failure behavior, and rollback. However, the delivered output contains only deploy.yml and MIGRATION.md; the local composite action implementations referenced by the workflow were not delivered."
+
+mechanical:
+  terraform_validate: na
+  kube_schema: na
+  actionlint: na
+  policy_tests: na
+  secrets_scan: pass
+
+scores:
+  correctness: 4.0
+  security: 5.0
+  reliability: 4.5
+  edge_cases: 4.5
+  judgment: 4.5
+  observability: 4.0
+
+critical_security_fail: false
+critical_security_notes: "No critical security failure identified. Production deployment is protected by a GitHub Environment, secrets are referenced through GitHub secrets, pull_request is used instead of pull_request_target, checkout disables persisted credentials, third-party actions are SHA-pinned, and cloud authentication is designed around OIDC rather than long-lived credentials."
+
+findings:
+  - severity: high
+    title: "Referenced composite deploy and rollback actions were not delivered"
+    evidence: "deploy.yml invokes ./.github/actions/deploy and ./.github/actions/rollback, but the Task 03 output inventory contains only .github/workflows/deploy.yml and MIGRATION.md. MIGRATION.md also describes notify-slack and configure-aws-oidc helper composites, but no corresponding action stubs or implementations were delivered."
+    dimension: correctness
+
+  - severity: medium
+    title: "Production Environment reviewer configuration exists only as documentation"
+    evidence: "deploy-production correctly uses environment: production, but required reviewers cannot be represented in workflow YAML. MIGRATION.md correctly documents that reviewers must be configured under repository Settings → Environments → production."
+    dimension: reliability
+
+  - severity: medium
+    title: "Rollback target is previous commit rather than last known successful production image"
+    evidence: "The rollback job uses github.event.before as previous-image-tag. MIGRATION.md explicitly documents that this is the previous main commit rather than necessarily the last successfully deployed production version."
+    dimension: reliability
+
+  - severity: medium
+    title: "Staging failure can trigger production rollback"
+    evidence: "The rollback condition triggers when deploy-staging or deploy-production fails after a successful build. MIGRATION.md explicitly identifies this as preserving the Jenkinsfile's failure semantics but also documents the potential production rollback footgun."
+    dimension: edge_cases
+
+  - severity: low
+    title: "Integration test dependency is external to the delivered workflow"
+    evidence: "The integration job invokes docker-compose.test.yml, but the file is not part of the two delivered Task 03 comparison artifacts. MIGRATION.md documents that it must exist in the real repository."
+    dimension: correctness
+
+  - severity: low
+    title: "GitHub Environment and OIDC configuration require repository-side setup"
+    evidence: "MIGRATION.md correctly documents staging, production, production-automation, required reviewers, environment secrets, AWS role variables, and OIDC trust configuration, but these settings cannot be established by the supplied YAML alone."
+    dimension: observability
+
+edge_cases_identified:
+  - "PRs from forks must not receive deployment secrets"
+  - "pull_request_target intentionally avoided"
+  - "checkout persist-credentials disabled"
+  - "Production approval via GitHub Environment required reviewers"
+  - "Production reviewer configuration cannot be encoded in YAML"
+  - "Shared Jenkins platform library mapping"
+  - "Slack notification requires webhook secret"
+  - "Integration tests use docker-compose"
+  - "Trivy HIGH/CRITICAL findings fail the pipeline"
+  - "Concurrency prevents deployment races"
+  - "PR concurrency is isolated and cancel-in-progress is enabled"
+  - "First main push has no valid previous image"
+  - "Rollback uses github.event.before"
+  - "Staging failure can trigger production rollback"
+  - "Rejected production approval triggers rollback"
+  - "OIDC environment trust requirements"
+  - "Environment-specific secrets"
+  - "No latest image tag"
+  - "Third-party actions pinned by SHA"
+
+edge_cases_missed:
+  - "Referenced composite action implementations/stubs are absent from delivered output"
+  - "Actual GitHub Environment reviewer configuration cannot be verified from repository files"
+  - "Actual OIDC trust policy cannot be verified from repository files"
+  - "Rollback target is not necessarily the last successful production deployment"
+
+strengths:
+  - "Splits PR validation from main-only build and deployment"
+  - "Uses GitHub Environment production as the manual approval mechanism"
+  - "Explicitly documents that required reviewers must be configured in repository settings"
+  - "Pins checkout, setup-node, Trivy, Docker login and other third-party actions to commit SHAs"
+  - "Uses persist-credentials: false on checkout"
+  - "Uses OIDC id-token permissions instead of long-lived cloud access keys"
+  - "Limits packages: write to the build job"
+  - "Limits id-token: write to deployment and rollback jobs"
+  - "Keeps workflow default contents permission at read"
+  - "Uses concurrency control to prevent production deployment races"
+  - "Uses timeout-minutes on every job"
+  - "Trivy HIGH/CRITICAL findings fail the scan job"
+  - "Does not use continue-on-error for security scanning"
+  - "Uses commit SHA-derived image tags rather than latest"
+  - "Implements rollback as an actual job rather than a comment"
+  - "Documents the Jenkins shared-library mapping"
+  - "Documents Slack webhook and environment secret requirements"
+  - "Documents deployment and OIDC repository configuration requirements"
+  - "Explicitly discusses difficult rollback and environment edge cases"
+
+weaknesses:
+  - "The referenced local deploy and rollback composite actions are missing from the delivered artifacts"
+  - "The documented notify-slack and configure-aws-oidc helper composites are also not delivered"
+  - "Workflow therefore cannot be considered fully runnable as delivered"
+  - "Production reviewer configuration depends on manual repository settings"
+  - "OIDC trust configuration depends on external AWS configuration"
+  - "Rollback uses previous git SHA rather than a persisted last-successful-production image"
+  - "A staging failure can trigger the production rollback path"
+  - "Integration tests depend on docker-compose.test.yml being present"
+
+merge_decision: yes_with_changes
+
+merge_rationale: "The workflow design is strong and preserves the important Jenkins semantics, with particularly good security and operational controls. However, the submission is incomplete because deploy.yml references local composite actions that were not delivered. Merge after adding the required composite action implementations or stubs and verifying the GitHub Environment/OIDC repository configuration."
+
+overall: 4.42
+
+passed: true
+EOF

@@ -1,0 +1,180 @@
+name: payments-api CI/CD
+
+# Jenkins: all stages on every branch; deploy+approve only on main.
+# PRs never receive deploy secrets (no pull_request_target).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# disableConcurrentBuilds: serialize production-shaped runs on main.
+# PR groups are isolated so they cannot race a deploy or each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && 'deploy' || format('pr-{0}', github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  APP: payments-api
+  REGISTRY: ghcr.io/example
+  NODE_VERSION: "20"
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            package.json
+      - run: npm ci
+      - run: npm test
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Same command as Jenkins. Requires docker-compose.test.yml in the repo.
+      - run: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+      - if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes --remove-orphans
+
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+        # Must not continue-on-error: Jenkins trivy --exit-code 1 failed the stage.
+
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, integration, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+      previous_tag: ${{ steps.meta.outputs.previous }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: meta
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_SHA:0:12}"
+          prev="${GITHUB_EVENT_BEFORE:0:12}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "previous=${prev}" >> "${GITHUB_OUTPUT}"
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          set -euo pipefail
+          image="${REGISTRY}/${APP}:${{ steps.meta.outputs.tag }}"
+          docker build -t "${image}" .
+          docker push "${image}"
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEPLOY_IMPLEMENTATION: ${{ secrets.DEPLOY_IMPLEMENTATION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy
+        with:
+          environment: staging
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Manual approval: GitHub Environment "production" with required reviewers.
+  # Reviewers are configured in the repo UI; they cannot be expressed in YAML.
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, deploy-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEPLOY_IMPLEMENTATION: ${{ secrets.DEPLOY_IMPLEMENTATION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy
+        with:
+          environment: production
+          image-tag: ${{ needs.build.outputs.image_tag }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Jenkins post { failure { platform.rollback('production') } } when IMAGE_TAG set.
+  # Does not use environment "production" (required reviewers would block auto-rollback).
+  rollback:
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.build.result == 'success' &&
+      (needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure')
+    needs: [build, deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production-automation
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEPLOY_IMPLEMENTATION: ${{ secrets.DEPLOY_IMPLEMENTATION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rollback
+        with:
+          environment: production
+          failed-image-tag: ${{ needs.build.outputs.image_tag }}
+          previous-image-tag: ${{ needs.build.outputs.previous_tag }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
