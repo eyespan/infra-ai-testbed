@@ -1,0 +1,29 @@
+name: 'Notify Slack'
+description: 'Send a notification to Slack via webhook'
+author: 'Platform Team'
+
+inputs:
+  message:
+    description: 'Message to send to Slack'
+    required: true
+  webhook-url:
+    description: 'Slack webhook URL'
+    required: true
+  channel:
+    description: 'Slack channel (optional)'
+    required: false
+    default: '#deployments'
+  username:
+    description: 'Bot username'
+    required: false
+    default: 'Deploy Bot'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Send Slack notification
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"channel\":\"${{ inputs.channel }}\",\"username\":\"${{ inputs.username }}\",\"text\":\"${{ inputs.message }}\"}" \
+          ${{ inputs.webhook-url }}
+      shell: bash

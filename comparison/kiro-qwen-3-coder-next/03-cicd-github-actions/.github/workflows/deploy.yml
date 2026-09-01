@@ -1,0 +1,192 @@
+name: Deploy
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP: payments-api
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/${{ env.APP }}
+
+jobs:
+  test:
+    name: Test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f525247813df949c13c464 # v4.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Cache dependencies
+        uses: actions/cache@6849a648994c34f34897a9661425872d12c75344 # v3.3.2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run integration tests
+        run: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+
+      - name: Security scan
+        run: |
+          if command -v trivy >/dev/null 2>&1; then
+            trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+          else
+            echo "Trivy not installed, skipping scan"
+          fi
+
+  build:
+    name: Build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+    outputs:
+      image-tag: ${{ steps.get-sha.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca5449401d364103d38d2409a60f6475b081d5 # v3.8.0
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@343f7c4c5a875397064e79275a619e371f3f735b # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@1d54c7415457575607e79171f43a504582836ed5 # v5.0.2
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@5cd52c746a3c26da31fc61e097890e9298014697 # v6.9.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Get short SHA
+        id: get-sha
+        run: echo "sha=${GITHUB_SHA::12}" >> $GITHUB_OUTPUT
+
+  deploy-staging:
+    name: Deploy to staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Deploy to staging
+        uses: ./.github/actions/deploy
+        with:
+          environment: staging
+          image-tag: ${{ needs.build.outputs.image-tag }}
+          region: us-east-1
+
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack
+        with:
+          message: "staging ${{ needs.build.outputs.image-tag }}"
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    environment:
+      name: production
+      url: https://production.example.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Deploy to production
+        uses: ./.github/actions/deploy
+        with:
+          environment: production
+          image-tag: ${{ needs.build.outputs.image-tag }}
+          region: us-east-1
+
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack
+        with:
+          message: "production ${{ needs.build.outputs.image-tag }}"
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    name: Rollback on failure
+    if: always() && needs.deploy-production.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Get previous SHA
+        id: previous-sha
+        run: |
+          # Get the previous successful deployment from git history
+          echo "sha=$(git log -1 --pretty=format:'%h' HEAD~1)" >> $GITHUB_OUTPUT
+
+      - name: Rollback production
+        uses: ./.github/actions/rollback
+        with:
+          environment: production
+          image-tag: ${{ steps.previous-sha.outputs.sha }}
+          region: us-east-1
+
+      - name: Notify Slack on rollback
+        uses: ./.github/actions/notify-slack
+        with:
+          message: "rollback production ${{ steps.previous-sha.outputs.sha }}"
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

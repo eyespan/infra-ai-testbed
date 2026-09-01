@@ -1,0 +1,112 @@
+# Copy this file to comparison/<model>/<task-id>/score.yaml
+schema_version: 1
+run:
+  model: "kiro-qwen-3-coder-next"
+  model_version: "Qwen 3 Coder Next"
+  task_id: "06"
+  date: "2026-09-01"
+  agent_had_shell: true
+  wall_clock_minutes: 10.17
+  notes: "Kiro reported 10m 10s elapsed time and estimated 4.08 credits used for the complete Task 06 run."
+
+mechanical:
+  terraform_validate: na
+  kube_schema: na
+  actionlint: na
+  policy_tests: fail
+  secrets_scan: na
+
+scores:
+  correctness: 1
+  security: 2
+  reliability: 2
+  edge_cases: 1
+  judgment: 2
+  observability: 1
+
+critical_security_fail: true
+critical_security_notes: "The IaC guardrails contain security-relevant false-negative paths. The S3 policy's supposed default-encryption check examines bucket_public_access_block rather than an encryption configuration, and the tag policy's deny rule applies to untaggable resources instead of taggable resources. Consequently, required security/tagging controls can fail open. The policy tests are also inverted: tests named *_should_fail use 'not deny', which asserts that no denial exists rather than asserting that a denial is produced."
+
+findings:
+  - severity: critical
+    title: "S3 encryption policy has an incorrect default-encryption check"
+    evidence: "s3_bucket_has_default_encryption(resource) checks resource.change.after.bucket_public_access_block[_], which is unrelated to S3 server-side encryption. A bucket with a public-access-block configuration could therefore satisfy the encryption check without actually having encryption enabled."
+    dimension: security
+
+  - severity: critical
+    title: "Required-tag policy denies the wrong resource class"
+    evidence: "The deny rule calls is_untaggable_resource(resource.type) before checking tags. This means the policy evaluates resources explicitly classified as untaggable, while resources classified as taggable are not enforced by the deny rule. The defined is_taggable_resource rule is never used."
+    dimension: security
+
+  - severity: high
+    title: "OPA/Rego tests are logically inverted"
+    evidence: "Tests named test_*_should_fail use 'not deny with input as ...'. That expression succeeds when deny does not exist, so the tests do not assert that violations are detected. The same inversion appears in the S3, security-group, EKS, and tag tests."
+    dimension: correctness
+
+  - severity: high
+    title: "Tag policy test coverage does not expose the policy implementation error"
+    evidence: "The test fixtures use aws_instance as a resource requiring tags, but aws_instance is included in UNTAGGABLE_RESOURCES. This allows the incorrect policy structure to appear consistent with the test intent while failing to enforce tags on genuinely taggable resources."
+    dimension: correctness
+
+  - severity: high
+    title: "CI documentation does not match a reliable Terraform plan workflow"
+    evidence: "The CI example runs 'conftest test -p policies tfplan.json', but the documented Terraform command creates tfplan as a binary plan and does not show 'terraform show -json tfplan > tfplan.json'. The example therefore does not provide a complete working Terraform-plan-to-OPA path."
+    dimension: reliability
+
+  - severity: medium
+    title: "Policy coverage contains contradictory resource classifications"
+    evidence: "Several resources appear in both the untaggable and taggable sets, including aws_s3_bucket, aws_instance, aws_security_group, aws_lb_target_group, aws_nat_gateway, aws_internet_gateway, aws_route_table, aws_eip, aws_cloudwatch_metric_alarm, aws_cloudwatch_log_group, aws_kms_key, aws_secretsmanager_secret and others."
+    dimension: judgment
+
+  - severity: medium
+    title: "S3 KMS helper is defined but unused"
+    evidence: "s3_bucket_has_kms_encryption is defined but never referenced by the deny rule. The effective encryption decision therefore relies only on the explicit configuration existence check and the incorrect bucket_public_access_block check."
+    dimension: edge_cases
+
+edge_cases_identified:
+  - "IPv4 0.0.0.0/0 security-group exposure"
+  - "IPv6 ::/0 security-group exposure"
+  - "SSH port 22"
+  - "RDP port 3389"
+  - "Restricted SSH source range"
+  - "HTTP exposure on port 80"
+  - "Partial EKS control-plane logging"
+  - "Missing EKS control-plane logging"
+  - "S3 AES256 encryption"
+  - "S3 KMS encryption"
+  - "Missing required tags"
+  - "Partial required tags"
+
+edge_cases_missed:
+  - "S3 bucket with bucket_public_access_block but no encryption"
+  - "S3 default encryption representations and Terraform plan unknown values"
+  - "Resources that are incorrectly present in both taggable and untaggable sets"
+  - "Taggable resources not included in the explicit TAGGABLE_RESOURCES enforcement path"
+  - "Terraform plan values that are unknown at plan time"
+  - "Security-group IPv6 rules represented through ipv6_cidr_blocks rather than cidr_blocks"
+  - "Security-group protocol and port-range edge cases beyond the tested TCP cases"
+  - "Update/delete resource actions rather than only create actions"
+
+strengths:
+  - "Provides separate S3, security-group, EKS, and tagging policies."
+  - "Includes positive and negative fixture intent for the major policy areas."
+  - "Security-group policy addresses both IPv4 and IPv6 any-source ranges."
+  - "Security-group policy covers both SSH and RDP."
+  - "EKS policy requires api, audit, and authenticator control-plane logging."
+  - "Includes policy documentation and CI integration guidance."
+  - "Provides a fixed Terraform-plan fixture intended to demonstrate compliant infrastructure."
+
+weaknesses:
+  - "Critical policy logic errors can cause security controls to fail open."
+  - "OPA/Rego tests use inverted assertions and therefore do not validate the intended deny behavior."
+  - "S3 default-encryption detection checks the wrong Terraform attribute."
+  - "Tag enforcement is applied to untaggable resources rather than taggable resources."
+  - "Taggable and untaggable resource classifications overlap substantially."
+  - "Several documented CI commands are not sufficient to transform a Terraform binary plan into the JSON input expected by the policies."
+  - "Policy rules only evaluate create actions, leaving update scenarios uncovered."
+  - "No demonstrated execution of opa/conftest tests was provided."
+
+merge_decision: no
+merge_rationale: "Do not merge. Although the submission has a good overall structure and covers the requested policy areas, multiple core guardrails are functionally incorrect. The S3 encryption policy can produce false negatives, the tag policy enforces the wrong resource class, and the test assertions are inverted. These defects undermine the central purpose of an IaC policy-guardrail task and require correction before merge."
+overall: 1.5
+passed: false

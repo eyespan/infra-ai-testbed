@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: 'localhost:25'
+      smtp_from: 'alertmanager@monitoring.local'
+
+    route:
+      group_by: ['alertname', 'severity']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: 'critical-receiver'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'critical-receiver'
+          continue: true
+        - match:
+            severity: warning
+          receiver: 'warning-receiver'
+
+    receivers:
+      - name: 'critical-receiver'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook-relay:8080/webhook'
+            send_resolved: true
+        email_configs:
+          - to: 'oncall@example.com'
+            send_resolved: true
+
+      - name: 'warning-receiver'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook-relay:8080/webhook'
+            send_resolved: true
+
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'namespace']

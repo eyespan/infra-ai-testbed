@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: payments
+  namespace: prod
+spec:
+  selector:
+    matchLabels:
+      app: payments
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
+      scheme: http
