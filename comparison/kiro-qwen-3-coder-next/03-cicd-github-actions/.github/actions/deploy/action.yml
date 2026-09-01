@@ -1,0 +1,43 @@
+name: 'Deploy to Kubernetes'
+description: 'Deploy the specified image tag to the given environment'
+author: 'Platform Team'
+
+inputs:
+  environment:
+    description: 'Target environment (staging or production)'
+    required: true
+    default: 'staging'
+  image-tag:
+    description: 'Docker image tag to deploy'
+    required: true
+  region:
+    description: 'AWS region for EKS cluster'
+    required: true
+    default: 'us-east-1'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@11bd7cf26987de88559a95406e7754290c15365d # v4.1.7
+      with:
+        persist-credentials: false
+
+    - name: Configure AWS credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@e3dd6a429ef4c53500115d713171679e56b92747 # v4.0.2
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ inputs.region }}
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name ${{ inputs.environment }}-cluster --region ${{ inputs.region }}
+      shell: bash
+
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl set image deployment/payments payments=${{ env.REGISTRY }}/${{ github.repository }}/payments-api:${{ inputs.image-tag }} -n ${{ inputs.environment }}
+      shell: bash
+
+    - name: Wait for rollout
+      run: kubectl rollout status deployment/payments -n ${{ inputs.environment }} --timeout=300s
+      shell: bash
