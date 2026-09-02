@@ -22,7 +22,7 @@ flowchart TB
 
     B --> C["🛠️ IMPLEMENTATION<br/><br/>Infrastructure code<br/>Configuration<br/>Documentation<br/>Analysis"]
 
-    C --> D["📦 MODEL OUTPUT<br/><br/>comparison/<br/>&lt;model&gt;/&lt;task&gt;/"]
+    C --> D["📦 MODEL OUTPUT<br/><br/>comparison/<br/>model/task/"]
 
     D --> E["⚙️ AUTOMATED VALIDATION<br/><br/>Syntax<br/>Terraform<br/>Kubernetes<br/>GitHub Actions<br/>Policy checks"]
 
