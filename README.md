@@ -11,6 +11,47 @@ produce infrastructure work that is not merely syntactically correct, but
 also secure, reliable, operationally sound, and appropriate for production
 use.
 
+flowchart TB
+
+    A["📋 TASK DEFINITION<br/><br/>PROMPT.md<br/>Starter files<br/>Criteria<br/>Expected behaviours"]
+
+    A --> B
+
+    B["🤖 FRONTIER CODING AGENT<br/><br/>Claude<br/>Codex<br/>Kiro<br/>Other agents"]
+
+    B --> C["🛠️ IMPLEMENTATION<br/><br/>Infrastructure code<br/>Configuration<br/>Documentation<br/>Analysis"]
+
+    C --> D["📦 MODEL OUTPUT<br/><br/>comparison/<br/>&lt;model&gt;/&lt;task&gt;/"]
+
+    D --> E["⚙️ AUTOMATED VALIDATION<br/><br/>Syntax<br/>Terraform<br/>Kubernetes<br/>GitHub Actions<br/>Policy checks"]
+
+    E --> F["👨‍💻 HUMAN REVIEW<br/><br/>Correctness<br/>Security<br/>Reliability<br/>Edge cases<br/>Engineering judgment<br/>Operations"]
+
+    F --> G["📝 EVIDENCE & SCORE<br/><br/>score.yaml<br/>Findings<br/>Top bug<br/>Strength<br/>Merge decision"]
+
+    G --> H["📊 COMPARISON MATRIX<br/><br/>Model × Task<br/>Mechanical checks<br/>Six evaluation dimensions<br/>Overall score"]
+
+    H --> I["🧠 BENCHMARK INSIGHTS<br/><br/>Strengths<br/>Weaknesses<br/>Failure modes<br/>Cross-cutting patterns"]
+
+    I --> J["✅ ENGINEERING DECISION<br/><br/>MERGE<br/>MERGE WITH CHANGES<br/>REJECT"]
+
+    K["⚠️ SAFETY BOUNDARY<br/><br/>Generated infrastructure is untrusted<br/>Do not apply to production<br/>Human review required"]
+
+    D -.-> K
+    K -.-> F
+
+    style A fill:#e3f2fd,stroke:#1565c0,stroke-width:3px
+    style B fill:#f3e5f5,stroke:#6a1b9a,stroke-width:3px
+    style C fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style D fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style E fill:#fce4ec,stroke:#ad1457,stroke-width:3px
+    style F fill:#fff8e1,stroke:#f57f17,stroke-width:4px
+    style G fill:#e0f7fa,stroke:#00695c,stroke-width:3px
+    style H fill:#ede7f6,stroke:#4527a0,stroke-width:3px
+    style I fill:#f1f8e9,stroke:#558b2f,stroke-width:3px
+    style J fill:#ffebee,stroke:#c62828,stroke-width:4px
+    style K fill:#ffecb3,stroke:#ff8f00,stroke-width:3px,stroke-dasharray: 6 4
+
 **Repository:** https://github.com/eyespan/infra-ai-testbed/
 
 Use this repository to:
