@@ -2,30 +2,299 @@
 
 A structured evaluation harness for **frontier coding agents** on realistic
 infrastructure engineering work: cloud platforms, Kubernetes, CI/CD,
-observability, and infrastructure automation.
+observability, reliability, and infrastructure automation.
+
+The purpose of this repository is to evaluate whether AI coding agents can
+produce infrastructure work that is not merely syntactically correct, but
+also secure, reliable, operationally sound, and appropriate for production
+use.
 
 Use this repository to:
 
-- Give the same task to multiple frontier coding agents
-- Review generated implementations with a professional checklist
-- Identify bugs, edge cases, reliability issues, and failure modes
+- Give the same task to multiple coding agents
+- Provide each agent with the same task requirements and starter material
+- Preserve each agent's generated implementation independently
+- Run automated validators where available
+- Review generated implementations with a professional engineering rubric
+- Identify bugs, edge cases, security issues, reliability problems, and
+  operational weaknesses
+- Record evidence and scores consistently
 - Compare model strengths and weaknesses side by side
 - Apply engineering judgment to merge / reject decisions
+- Generate a reproducible comparison matrix across models and tasks
 
-This is **not** a live cloud lab. Tasks are designed so agents produce
-code and written analysis. Automated validators catch syntax and policy
-issues; humans score reasoning, security, and production readiness.
+This is **not** a live cloud lab.
+
+Tasks are designed so agents produce code, configuration, infrastructure
+definitions, and/or written analysis. Automated validators catch syntax,
+structural, and policy issues where practical. Human evaluation is still
+required for reasoning quality, security, edge cases, reliability, judgment,
+and production readiness.
+
+---
 
 ## Quick start
 
-1. Pick a task under `tasks/`.
-2. Give the agent `PROMPT.md` plus everything in `starter/`.
-3. Save the output under `comparison/<model-name>/<task-id>/`.
-4. Run the matching script in `scripts/` (optional, if tools are installed).
-5. Score with `evaluation/rubric.md` and fill `evaluation/scoring-template.yaml`.
-6. Update `evaluation/comparison-matrix.md`.
+### 1. Choose a task
 
-Do **not** apply generated infrastructure to a real account. Review first.
+Pick a task under:
+
+```text
+tasks/
+```
+
+Each task contains the requirements, starter material, review criteria, and
+expected behaviours.
+
+For example:
+
+```text
+tasks/03-cicd-github-actions/
+```
+
+### 2. Give the task to the coding agent
+
+Provide the agent with:
+
+```text
+tasks/<task-id>/PROMPT.md
+tasks/<task-id>/starter/
+```
+
+The agent should work in the existing repository and inspect the task
+requirements and starter files before making changes.
+
+A good agent prompt should explicitly require the agent to:
+
+- Read the task requirements first
+- Inspect all relevant starter files
+- Implement the task rather than merely describe a solution
+- Create all required deliverables
+- Place the generated implementation in the designated comparison directory
+- Verify the generated files before finishing
+- Avoid modifying unrelated benchmark material
+
+### 3. Save the agent output
+
+Each model/run should have its own directory:
+
+```text
+comparison/<model-name>/<task-id>/
+```
+
+For example:
+
+```text
+comparison/
+├── claude-sonnet-4-5/
+│   ├── 01-terraform-eks-module/
+│   ├── 02-k8s-secure-deployment/
+│   ├── 03-cicd-github-actions/
+│   ├── 04-observability-stack/
+│   ├── 05-incident-triage/
+│   └── 06-iac-policy-guardrails/
+│
+├── codex-gpt-oss-1-20b/
+│   ├── 01-terraform-eks-module/
+│   ├── 02-k8s-secure-deployment/
+│   └── ...
+│
+└── kiro-qwen-3-coder-next/
+    ├── 01-terraform-eks-module/
+    ├── 02-k8s-secure-deployment/
+    └── ...
+```
+
+Do not overwrite another model's output.
+
+The comparison directory is intended to preserve the evidence produced by
+each model independently.
+
+### 4. Run automated validation
+
+Where a task provides a validator, run the matching script in:
+
+```text
+scripts/
+```
+
+Examples:
+
+```text
+scripts/validate-terraform.sh
+scripts/validate-k8s.sh
+scripts/validate-gha.sh
+scripts/score-run.sh
+```
+
+The exact commands and prerequisites are documented by the individual task
+and evaluation material.
+
+Automated validation is evidence, not a replacement for human review.
+
+A configuration can pass syntax validation and still contain serious:
+
+- security problems
+- reliability problems
+- incorrect assumptions
+- missing edge-case handling
+- operational weaknesses
+- production-readiness issues
+
+### 5. Score the run
+
+Use:
+
+```text
+evaluation/rubric.md
+evaluation/scoring-template.yaml
+```
+
+Each evaluated model/task should have a score file inside its comparison
+directory.
+
+Both of the following extensions are supported:
+
+- `score.yml`
+- `score.yaml`
+
+The benchmark therefore accepts:
+
+```text
+comparison/<model>/<task>/score.yml
+```
+
+or:
+
+```text
+comparison/<model>/<task>/score.yaml
+```
+
+The score file is the authoritative record of the evaluation.
+
+It should contain the scores, evidence, merge decision, top finding, and
+strength for that model/task run.
+
+---
+
+## Scoring model
+
+The benchmark evaluates six primary engineering dimensions:
+
+- Correctness
+- Security
+- Reliability
+- Edge cases
+- Engineering judgment
+- Operations / observability
+
+Each dimension is scored from `0` to `5`.
+
+Tasks may also have **Mechanical checks**.
+
+Mechanical checks are reported separately because they are normally objective
+pass/fail checks rather than a judgement score.
+
+For example:
+
+```text
+Mechanical: 3/3
+```
+
+or:
+
+```text
+Mechanical: N/A
+```
+
+### Overall score
+
+The overall score is the mean of the applicable scored dimensions.
+
+Conceptually:
+
+```text
+overall = mean(
+    correctness,
+    security,
+    reliability,
+    edges,
+    judgment,
+    operations
+)
+```
+
+The default pass bar is:
+
+```text
+overall >= 3.5
+```
+
+However, a run must also avoid a critical security failure.
+
+Therefore:
+
+```text
+PASS =
+    overall >= 3.5
+    AND
+    critical_security_fail == false
+```
+
+A high numerical score must not hide a critical security defect.
+
+### Merge decisions
+
+The evaluation should distinguish between:
+
+- `yes`
+- `yes_with_changes`
+- `no`
+
+Use:
+
+- `yes` when the implementation is suitable to merge as submitted
+- `yes_with_changes` when the implementation is broadly sound but requires
+  material fixes before merging
+- `no` when the implementation contains unacceptable defects or does not
+  satisfy the task sufficiently
+
+A merge decision is an engineering judgement and should be supported by the
+recorded evidence.
+
+### Evidence-based scoring
+
+Scores should be based on observable evidence.
+
+Prefer evidence such as:
+
+```text
+modules/eks/main.tf:299-322 creates a managed node group
+```
+
+over vague statements such as:
+
+```text
+The solution looks production ready.
+```
+
+Useful evidence can include:
+
+- file paths
+- line ranges
+- validator output
+- test results
+- policy results
+- configuration values
+- explicit omissions
+- incorrect assumptions
+- documented limitations
+- implementation behaviour
+
+The objective is to make another engineer able to understand why the score
+was awarded.
+
+---
 
 ## Tasks
 
@@ -38,30 +307,66 @@ Do **not** apply generated infrastructure to a real account. Review first.
 | 05 | Incident triage | Reliability | Hard |
 | 06 | IaC policy guardrails | Automation / policy | Medium |
 
-Each task folder contains:
+Each task folder normally contains:
 
-- `PROMPT.md` — exact prompt to give the agent
-- `starter/` — incomplete or intentionally flawed inputs
-- `criteria.md` — review checklist (bugs, edge cases, reliability)
-- `expected-behaviors.md` — what a strong solution looks like
-- `README.md` — how to run this task
+```text
+PROMPT.md
+starter/
+criteria.md
+expected-behaviors.md
+README.md
+```
+
+**`PROMPT.md`**
+The exact task prompt intended for the coding agent.
+
+**`starter/`**
+Incomplete, intentionally flawed, or constrained material supplied to the
+agent.
+
+Starter files should represent realistic infrastructure situations rather
+than empty coding exercises.
+
+**`criteria.md`**
+Task-specific review criteria covering issues such as:
+
+- correctness
+- security
+- reliability
+- edge cases
+- operational behaviour
+
+**`expected-behaviors.md`**
+Characteristics expected from a strong solution.
+
+This should describe the desired engineering behaviour without requiring the
+agent to reproduce a single fixed implementation.
+
+**`README.md`**
+Task-specific execution and validation instructions.
+
+---
 
 ## Repository layout
 
-```
+```text
 infra-ai-testbed/
 ├── README.md
 ├── HOW_TO_EVALUATE.md
 ├── AGENTS.md
+│
 ├── evaluation/
 │   ├── rubric.md
 │   ├── scoring-template.yaml
 │   └── comparison-matrix.md
+│
 ├── scripts/
 │   ├── validate-terraform.sh
 │   ├── validate-k8s.sh
 │   ├── validate-gha.sh
-│   └── score-run.sh
+│   ├── score-run.sh
+│   └── generate-comparison-matrix.py
+│
 ├── tasks/
 │   ├── 01-terraform-eks-module/
 │   ├── 02-k8s-secure-deployment/
@@ -69,34 +374,394 @@ infra-ai-testbed/
 │   ├── 04-observability-stack/
 │   ├── 05-incident-triage/
 │   └── 06-iac-policy-guardrails/
-├── baselines/          # optional known-good solutions (you add later)
-└── comparison/         # drop model outputs here
+│
+├── baselines/
+│   └── # optional known-good solutions
+│
+├── comparison/
+│   ├── <model-1>/
+│   ├── <model-2>/
+│   └── <model-3>/
+│
+└── comparison-matrix-<DDMMYYYY>.md
 ```
 
-## What you will do
+---
 
-- Use frontier AI coding agents to complete and evaluate complex
-  infrastructure engineering tasks.
-- Review model-generated implementations involving cloud platforms,
-  Kubernetes, CI/CD systems, observability, and infrastructure automation.
-- Identify bugs, edge cases, reliability issues, and failure modes.
-- Compare outputs from multiple frontier models and assess strengths
-  and weaknesses.
-- Apply professional engineering judgment to realistic infrastructure
-  scenarios.
+## Comparison matrix generation
+
+The benchmark includes an automated comparison-matrix generator:
+
+```text
+scripts/generate-comparison-matrix.py
+```
+
+The generator reads:
+
+```text
+comparison/**/score.yml
+comparison/**/score.yaml
+```
+
+and uses:
+
+```text
+evaluation/comparison-matrix.md
+```
+
+as the template.
+
+It writes the generated report into the repository root as:
+
+```text
+comparison-matrix-<DDMMYYYY>.md
+```
+
+For example:
+
+```text
+comparison-matrix-02092026.md
+```
+
+Run it from the repository root:
+
+```bash
+scripts/generate-comparison-matrix.py
+```
+
+or:
+
+```bash
+python3 scripts/generate-comparison-matrix.py
+```
+
+The generator automatically:
+
+- discovers model/task score files
+- supports both `.yml` and `.yaml`
+- extracts mechanical results
+- extracts dimension scores
+- calculates/uses the recorded overall score
+- records merge decisions
+- records the top finding
+- records the main strength
+- orders results by task and model
+- generates task-level narratives when multiple models have been evaluated
+- generates cross-cutting patterns
+- writes a dated report into the repository root
+
+The template in `evaluation/comparison-matrix.md` is therefore the input
+template, not the final report.
+
+Do not manually edit the generated dated report unless it is being used for
+a specific publication or snapshot.
+
+### Comparison report structure
+
+The generated report contains two major parts.
+
+**Comparison table**
+
+One row is generated for each `(model, task)` pair.
+
+The table includes:
+
+- Model
+- Task
+- Mechanical
+- Correct
+- Secure
+- Reliable
+- Edges
+- Judgment
+- Ops
+- Overall
+- Merge
+- Top bug
+- Strength
+
+This makes it possible to compare models both within a task and across the
+entire benchmark.
+
+**Task narratives**
+
+When two or more models have been scored for the same task, the generator
+creates a narrative section such as:
+
+```text
+Task 03 — CI/CD migration
+```
+
+The narrative summarizes:
+
+- each model's result
+- score differences
+- important strengths
+- top findings
+- edge cases identified
+- edge cases missed
+
+This is intended to answer a more useful question than "which model has the
+highest score?" It should also reveal why the models differed, and what
+engineering behaviours caused the difference.
+
+**Cross-cutting patterns**
+
+The generated report also looks across tasks for recurring patterns such as:
+
+- IDE-first vs terminal-native
+- cloud-specific depth vs portability
+- happy-path bias
+- secret handling
+
+These patterns are useful for identifying systematic model behaviour rather
+than isolated mistakes.
+
+For example, repeated findings around:
+
+- public cloud endpoints
+- plaintext secrets
+- missing OIDC
+- unpinned container images
+- incomplete rollback evidence
+- weak edge-case handling
+
+may indicate a broader model tendency.
+
+---
+
+## Evaluation philosophy
+
+This benchmark is designed to distinguish between "the agent produced
+something that looks right" and "the agent produced infrastructure that an
+experienced engineer could reasonably approve."
+
+A strong result should therefore demonstrate more than implementation speed.
+It should demonstrate:
+
+- accurate interpretation of requirements
+- preservation of existing semantics
+- security awareness
+- failure-mode awareness
+- production reasoning
+- operational thinking
+- appropriate validation
+- explicit handling of uncertainty
+- sensible trade-offs
+- evidence-based conclusions
+
+### What you will do
+
+Use frontier AI coding agents to:
+
+- complete infrastructure engineering tasks
+- inspect existing infrastructure code
+- modify Terraform
+- create Kubernetes manifests
+- migrate CI/CD pipelines
+- design observability configurations
+- perform incident analysis
+- create infrastructure policy guardrails
+
+Then:
+
+- preserve the generated output
+- run appropriate validators
+- inspect the actual generated files
+- score the implementation
+- record evidence
+- compare models
+- make a merge/reject decision
+- generate the comparison report
+
+---
+
+## Important evaluation principles
+
+**Do not score filenames**
+
+The existence of a file such as `networkpolicy.yaml`, `secret.yaml`, or
+`serviceaccount.yaml` does not prove that the implementation is secure.
+Inspect the contents.
+
+**Do not score intent as implementation**
+
+A model may write "OIDC authentication is enabled" while the actual workflow
+uses long-lived credentials. Score the implementation, not the explanation.
+
+**Do not confuse syntax validation with correctness**
+
+A file can pass `terraform validate` and still contain:
+
+- unsafe networking
+- invalid production assumptions
+- poor failure handling
+- missing encryption
+- inadequate validation
+- unsupported versions
+
+Likewise, valid Kubernetes YAML can still be operationally unsafe.
+
+**Treat missing evidence as missing evidence**
+
+If an agent claims "rollback provides zero downtime" but no evidence
+supports that claim, do not automatically award the reliability points.
+The benchmark rewards evidence-based engineering judgement.
+
+**Separate "identified" from "missed"**
+
+When scoring edge cases, distinguish between edge cases *identified* and
+edge cases *missed*. A strong agent should not merely solve the happy path.
+It should recognize conditions that can cause the implementation to fail in
+real environments.
+
+---
 
 ## Safety
 
-- Never feed real production secrets into an agent.
-- Never `terraform apply` or `kubectl apply` generated code against
-  production without a human review and a non-prod dry run.
-- Treat agent output as untrusted until scored.
+This repository contains infrastructure examples and intentionally flawed
+configurations.
+
+Do not apply generated infrastructure directly to production.
+
+Never run `terraform apply` or `kubectl apply` against a production account
+or cluster without appropriate review and controlled non-production
+validation.
+
+Additional rules:
+
+- Never feed real production secrets to an AI coding agent.
+- Do not commit real credentials.
+- Treat generated credentials and tokens as sensitive.
+- Treat agent-generated infrastructure as untrusted until reviewed.
+- Use isolated/non-production environments for live testing.
+- Prefer dry runs and static validation where possible.
+- Review IAM, networking, authentication, encryption, and secret handling
+  before any deployment.
+
+---
+
+## Reproducibility
+
+For meaningful model comparisons, keep the evaluation conditions as
+consistent as possible.
+
+Record where practical:
+
+- model name
+- model/version
+- coding agent
+- date
+- task
+- prompt version
+- starter version
+- validator results
+- score file
+- merge decision
+
+Do not silently change the task prompt or starter material between model
+runs.
+
+If the benchmark itself changes, consider recording a benchmark/version
+identifier in the evaluation material.
+
+---
+
+## Adding another model
+
+To evaluate another coding agent:
+
+1. Create a model directory under `comparison/`. For example:
+   `comparison/new-model/`
+2. Run each task using the same task requirements.
+3. Store each result under `comparison/new-model/<task-id>/`.
+4. Validate the generated output.
+5. Create `score.yaml` or `score.yml`.
+6. Score using `evaluation/rubric.md`.
+7. Regenerate the comparison matrix:
+   `scripts/generate-comparison-matrix.py`
+
+---
 
 ## Expanding the suite
 
-Add a new folder under `tasks/` with the same five files. Keep prompts
-self-contained. Prefer starter files that encode real failure modes
-(hardcoded secrets, missing probes, dropped approval gates) over empty
-scaffolds.
+Add a new folder under `tasks/` using the established task structure.
 
-See `HOW_TO_EVALUATE.md` for the scoring workflow.
+Prefer tasks that represent realistic infrastructure engineering problems.
+
+Good starter material should encode real failure modes such as:
+
+- hardcoded secrets
+- excessive IAM permissions
+- public network exposure
+- missing readiness/liveness probes
+- missing resource limits
+- unsafe deployment strategies
+- dropped approval gates
+- long-lived cloud credentials
+- unpinned dependencies
+- incorrect rollback logic
+- weak policy validation
+- missing observability
+- incomplete failure handling
+
+Avoid empty scaffolds that only test whether an agent can generate
+boilerplate.
+
+A good benchmark task should require engineering judgement.
+
+---
+
+## Baselines
+
+Known-good reference implementations may be added under `baselines/`.
+
+Baselines are optional.
+
+They should be used as engineering references rather than as an answer key
+that forces every model to reproduce exactly the same implementation.
+
+Multiple technically valid solutions may exist.
+
+---
+
+## Final workflow
+
+The intended end-to-end workflow is:
+
+```text
+Task
+  │
+  ▼
+PROMPT.md + starter/
+  │
+  ▼
+Coding agent
+  │
+  ▼
+comparison/<model>/<task>/
+  │
+  ├── generated implementation
+  ├── generated documentation
+  └── validation evidence
+  │
+  ▼
+Automated validation
+  │
+  ▼
+Human review
+  │
+  ▼
+score.yml / score.yaml
+  │
+  ▼
+scripts/generate-comparison-matrix.py
+  │
+  ▼
+comparison-matrix-<DDMMYYYY>.md
+```
+
+The goal is not simply to determine which model writes the most code.
+
+The goal is to determine which coding agent demonstrates the strongest
+overall infrastructure engineering judgement under consistent evaluation.
