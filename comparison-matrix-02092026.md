@@ -2,81 +2,87 @@
 
 Generated automatically from `comparison/**/score.yaml` and `comparison/**/score.yml`.
 
-Generated: 2026-09-02 10:04:44
+Generated: 2026-09-02 10:34:05
+
 Fill one row per (model, task). Keep evidence short.
 
 | Model | Task | Mechanical | Correct | Secure | Reliable | Edges | Judgment | Ops | Overall | Merge | Top bug | Strength |
-|-------|------|------------|---------|--------|----------|-------|----------|-----|---------|-------|---------|----------|
-| claude-sonnet-4-5 | 01 | 3/3 | {'score': 4.0, 'evidence': ['terraform validate passes for modules/eks', 'terraform validate passes for staging', 'modules/eks/main.tf:299-322 defines an EKS managed node group with IAM dependencies', 'modules/eks/main.tf:228-232 configures EKS networking']} | {'score': 3.0, 'evidence': ['modules/eks/main.tf:229 places the EKS cluster across private and public subnets', 'modules/eks/main.tf:230-231 enables both private and public API endpoint access', 'modules/eks/main.tf:159-168 creates CloudWatch logging but no KMS configuration is present', 'modules/eks/main.tf:251-254 creates an OIDC provider, but the module does not create an IRSA consumer role constrained to a specific ServiceAccount', 'modules/eks/main.tf:190-197 and 283-295 use required AWS managed policies without AdministratorAccess']} | {'score': 3.5, 'evidence': ['modules/eks/main.tf:89-103 creates one NAT Gateway per AZ', 'modules/eks/main.tf:298-322 creates a managed node group in private subnets', 'modules/eks/main.tf:313-315 sets max_unavailable = 1', 'modules/eks/main.tf:318-322 explicitly depends on node IAM policy attachments', 'No comprehensive rollback/failure-mode procedure is implemented in the Terraform module']} | {'score': 2.5, 'evidence': ['modules/eks/main.tf:38,57,75,91,125,133,152 hard-code count = 3 rather than deriving subnet/NAT cardinality from available AZs', 'modules/eks/main.tf:42 and 61 index the discovered AZ list three times, so a region with fewer than three AZs is not safely handled', 'variables.tf:24-40 supports desired/min/max capacity but contains no validation for desired_capacity = 0 or invalid capacity relationships', 'variables.tf:6-10 defaults kubernetes_version to 1.28 without validation against supported/retired EKS versions', 'No explicit CIDR validation for six subnet allocations']} |  |  | {'formula': 'mean(scores)', 'score': 3.33, 'pass_bar': 3.5, 'passed': False, 'critical_security_fail': False} | {'decision': 'yes with changes', 'rationale': 'the implementation is structurally sound and terraform validation passes, but the module has material platform-level gaps around encryption, public eks api exposure, az cardinality, version validation, irsa consumer trust constraints, and operational controls.\n'} |  |  |
-| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 01 | 2/2 | 4.8 | 4.7 | 4.6 | 4.7 | 4.8 | 4.6 | 4.7 | yes_with_changes | medium: CIDR-wide rules require explicit review | Replaces the starter design with a reusable EKS/VPC module |
-| kiro (qwen-3-coder-next) | 01 | N/A | 2 | 2 | 2 | 2 | 2 | 2 | 2 | no | critical: EKS API endpoint exposed publicly to the entire internet | Creates a complete multi-AZ VPC layout with public and private subnets. |
-| claude-code (Claude Sonnet 4.5) | 02 | N/A | 4.5 | 4 | 3.5 | 3.5 | 4 | 3 | 3.75 | yes_with_changes | medium: ConfigMap changes do not trigger a Deployment rollout | Correctly moved DB_PASSWORD from the Deployment environment value to secretKeyRef |
-| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 02 | 1/1 | 4.5 | 5 | 4.5 | 4.5 | 4.5 | 4.5 | 4.58 | yes_with_changes | medium: Image is version-tagged but not pinned by digest | Comprehensive security hardening rather than deleting insecure configuration |
-| kiro (Qwen3 Coder Next) | 02 | 0/1 | 4.5 | 0 | 4.5 | 3.5 |  |  | 3.42 | no | critical: Plaintext production secret committed | Creates the complete requested 10-file output set. |
-| claude-code (Claude Sonnet 4.5) | 03 | N/A | 4 | 2.5 | 3.5 | 3 | 3 | 3.5 | 3.25 | yes_with_changes | high: Cloud deployment authentication does not use OIDC | Correctly restricts deployment to pushes on main |
-| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 03 | 1/1 | 4.5 | 4.5 | 4.5 | 4.5 | 4.5 | 4 | 4.42 | yes_with_changes | medium: Trivy container image is tag-pinned rather than digest-pinned | Faithfully maps the Jenkins unit, integration, scan, build, staging, production, rollback, concurrency, and notification behavior |
-| kiro (Qwen3 Coder Next) | 03 | N/A | 3 | 2.5 | 3 | 3 |  |  | 3.08 | yes_with_changes | high: AWS OIDC requirement is not implemented in the generated workflow | Creates the required deploy.yml workflow. |
-| claude-code (Claude Sonnet 4.5) | 04 | N/A | 4 | 3 | 5 | 4.5 | 4 | 5 | 4.25 | yes_with_changes | high: Prometheus and Alertmanager lack authentication and TLS by default | Comprehensive Prometheus configuration covering Kubernetes service discovery, persistence, retention, resources, security context, and health probes. |
-| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 04 | 2/2 | 4.5 | 4.8 | 4.5 | 4.5 | 4.7 | 4.7 | 4.62 | yes_with_changes | medium: Alertmanager is single-replica with ephemeral storage | Production-oriented observability stack without an unnecessarily large Helm values file |
-| kiro (Qwen3 Coder Next) | 04 | N/A | 3 | 3.5 | 2.5 | 3 |  |  | 2.92 | no | high: AlertmanagerDown alert has no configured Alertmanager scrape target | Creates a complete-looking observability stack covering Prometheus, Alertmanager and Grafana. |
-| claude-code (Claude Sonnet 4.5) | 05 | N/A | 4.5 | 4 | 4 | 4 | 4.5 | 4 | 4.25 | yes_with_changes | medium: Proposed 48Mi Node.js heap requires workload validation | Strong evidence-based root cause identification |
-| codex (gpt-oss-20b) | 05 | N/A | 5 | 5 | 5 | 5 | 5 | 5 | 5 | yes | note: Operational impact explicitly considered | Follows the required triage sequence: pods → describe/events → logs → previous logs → resource limits → probes → rollout → desired versus running configuration. |
-| kiro (Qwen3 Coder Next) | 05 | N/A | 5 | 4 | 5 | 4.5 |  |  | 4.75 | yes | medium: Revision 13 described as confirmed stable | Correctly identifies OOMKilled with exit code 137 as the immediate failure mechanism. |
-| claude-code (Claude Sonnet 4.5) | 06 | N/A | 3.5 | 3.5 | 3.5 | 3 | 4 | 3.5 | 3.5 | yes_with_changes | medium: after_unknown is not handled | Four required policy areas are implemented. |
-| codex-gpt-oss-1-20b | 06 | N/A |  |  |  |  |  |  | 4.73 | yes_with_changes | medium: Executable OPA/Conftest verification was initially unavailable | Policies evaluate Terraform plan JSON rather than HCL |
-| kiro-qwen-3-coder-next (Qwen 3 Coder Next) | 06 | 0/1 | 1 | 2 | 2 | 1 | 2 | 1 | 1.5 | no | critical: Required-tag policy denies the wrong resource class | Provides separate S3, security-group, EKS, and tagging policies. |
+|-------|------|------------|---------|--------|----------|-------|----------|-----|---------|-------|---------|---------|
+| Claude Sonnet 4.5 | 01 |  |  |  |  |  |  |  | 3.33 | Yes with changes | The module hard-codes three AZ-dependent resources while only dynamically discovering the AZ list, making the advertised multi-AZ design unsafe for regions with fewer than three... | Strong baseline EKS architecture: worker nodes are isolated in private subnets, NAT gateways provide egress, managed node groups have explicit IAM dependencies, cluster logging... |
+| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 01 |  |  |  |  |  |  |  | 4.7 | yes_with_changes |  | Replaces the starter design with a reusable EKS/VPC module |
+| kiro (Qwen3 Coder Next) | 01 |  |  |  |  |  |  |  | 2 |  | critical security failure | Creates a complete multi-AZ VPC layout with public and private subnets. |
+| claude-code (Claude Sonnet 4.5) | 02 |  |  |  |  |  |  |  | 3.75 | yes_with_changes |  | Correctly moved DB_PASSWORD from the Deployment environment value to secretKeyRef |
+| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 02 |  |  |  |  |  |  |  | 4.58 | yes_with_changes |  | Comprehensive security hardening rather than deleting insecure configuration |
+| kiro (Qwen3 Coder Next) | 02 |  |  |  |  |  |  |  | 3.4167 | no | critical security failure | Creates the complete requested 10-file output set. |
+| claude-code (Claude Sonnet 4.5) | 03 |  |  |  |  |  |  |  | 3.25 | yes_with_changes |  | Correctly restricts deployment to pushes on main |
+| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 03 |  |  |  |  |  |  |  | 4.42 | yes_with_changes |  | Faithfully maps the Jenkins unit, integration, scan, build, staging, production, rollback, concurrency, and notification behavior |
+| kiro (Qwen3 Coder Next) | 03 |  |  |  |  |  |  |  | 3.08 | yes with changes |  | Creates the required deploy.yml workflow. |
+| claude-code (Claude Sonnet 4.5) | 04 |  |  |  |  |  |  |  | 4.25 | yes_with_changes |  | Comprehensive Prometheus configuration covering Kubernetes service discovery, persistence, retention, resources, security context, and health probes. |
+| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 04 |  |  |  |  |  |  |  | 4.62 | yes_with_changes |  | Production-oriented observability stack without an unnecessarily large Helm values file |
+| kiro (Qwen3 Coder Next) | 04 |  |  |  |  |  |  |  | 2.92 | no |  | Creates a complete-looking observability stack covering Prometheus, Alertmanager and Grafana. |
+| claude-code (Claude Sonnet 4.5) | 05 |  |  |  |  |  |  |  | 4.25 | yes_with_changes |  | Strong evidence-based root cause identification |
+| codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) | 05 |  |  |  |  |  |  |  | 5 | yes |  | Follows the required triage sequence: pods → describe/events → logs → previous logs → resource limits → probes → rollout → desired versus running configuration. |
+| kiro (Qwen3 Coder Next) | 05 |  |  |  |  |  |  |  | 4.75 | yes |  | Correctly identifies OOMKilled with exit code 137 as the immediate failure mechanism. |
+| claude-code (Claude Sonnet 4.5) | 06 |  |  |  |  |  |  |  | 3.5 | yes_with_changes |  | Four required policy areas are implemented. |
+| codex | 06 |  |  |  |  |  | 4.8 |  | 4.73 | yes_with_changes |  | Policies evaluate Terraform plan JSON rather than HCL |
+| kiro (Qwen3 Coder Next) | 06 |  |  |  |  |  |  |  | 1.5 |  | critical security failure | Provides separate S3, security-group, EKS, and tagging policies. |
 
 ## Narrative (after two or more models on the same task)
+
 ### Task 01 — Terraform EKS
-- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.7; strength: Replaces the starter design with a reusable EKS/VPC module; top finding: medium: CIDR-wide rules require explicit review.
-- **claude-sonnet-4-5**; overall {'formula': 'mean(scores)', 'score': 3.33, 'pass_bar': 3.5, 'passed': False, 'critical_security_fail': False}.
-- **kiro (qwen-3-coder-next)**; overall 2; strength: Creates a complete multi-AZ VPC layout with public and private subnets.; top finding: critical: EKS API endpoint exposed publicly to the entire internet.
-- **Score differences:** Correct: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.8; kiro (qwen-3-coder-next) 2; Secure: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.7; kiro (qwen-3-coder-next) 2; Reliable: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.6; kiro (qwen-3-coder-next) 2.
-- **Edge cases identified:** Availability zones are selected dynamically from the caller's region rather than hardcoded AZ names; Module explicitly checks for insufficient AZ capacity; VPC CIDR capacity for six subnets is explicitly validated; desired_capacity = 0 is supported only with min_capacity = 0; Cluster version is supplied by the caller rather than silently defaulting to a potentially retired version.
-- **Edge cases missed:** A live AWS-backed terraform plan was not executed; The module requires at least three availability zones and therefore cannot directly support a two-AZ region; CIDR-wide Terraform rules should receive an explicit production security review; Undeclared environment variable passed from staging root module; Contradictory StringEquals/StringLike conditions in the IRSA trust policy.
+
+- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.7; strength: Replaces the starter design with a reusable EKS/VPC module.
+
+- **Claude Sonnet 4.5**; overall 3.33; strength: Strong baseline EKS architecture: worker nodes are isolated in private subnets, NAT gateways provide egress, managed node groups have explicit IAM dependencies, cluster logging...; top finding: The module hard-codes three AZ-dependent resources while only dynamically discovering the AZ list, making the advertised multi-AZ design unsafe for regions with fewer than three....
+
+- **kiro (Qwen3 Coder Next)**; overall 2; strength: Creates a complete multi-AZ VPC layout with public and private subnets.; top finding: critical security failure.
 
 ### Task 02 — Secure Kubernetes
-- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.58; strength: Comprehensive security hardening rather than deleting insecure configuration; top finding: medium: Image is version-tagged but not pinned by digest.
-- **claude-code (Claude Sonnet 4.5)**; overall 3.75; strength: Correctly moved DB_PASSWORD from the Deployment environment value to secretKeyRef; top finding: medium: ConfigMap changes do not trigger a Deployment rollout.
-- **kiro (Qwen3 Coder Next)**; overall 3.42; strength: Creates the complete requested 10-file output set.; top finding: critical: Plaintext production secret committed.
-- **Score differences:** Secure: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 5; kiro (Qwen3 Coder Next) 0; Reliable: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock), kiro (Qwen3 Coder Next) 4.5; claude-code (Claude Sonnet 4.5) 3.5; Edges: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.5; claude-code (Claude Sonnet 4.5), kiro (Qwen3 Coder Next) 3.5.
-- **Edge cases identified:** Rolling update with 2 replicas and PDB minAvailable=1; Ingress controller namespace assumption explicitly documented; Linux securityContext fields kept appropriate to Linux workload; ConfigMap checksum annotation used to trigger controlled rollout; terminationGracePeriodSeconds configured.
-- **Edge cases missed:** The actual image digest is not pinned in the supplied Deployment; NetworkPolicy selectors and PostgreSQL port remain deployment-specific assumptions requiring verification; terminationGracePeriodSeconds; topology spread constraints; ConfigMap checksum annotation.
+
+- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.58; strength: Comprehensive security hardening rather than deleting insecure configuration.
+
+- **claude-code (Claude Sonnet 4.5)**; overall 3.75; strength: Correctly moved DB_PASSWORD from the Deployment environment value to secretKeyRef.
+
+- **kiro (Qwen3 Coder Next)**; overall 3.4167; strength: Creates the complete requested 10-file output set.; top finding: critical security failure.
 
 ### Task 03 — CI/CD migration
-- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.42; strength: Faithfully maps the Jenkins unit, integration, scan, build, staging, production, rollback, concurrency, and notification behavior; top finding: medium: Trivy container image is tag-pinned rather than digest-pinned.
-- **kiro (Qwen3 Coder Next)**; overall 3.08; strength: Creates the required deploy.yml workflow.; top finding: high: AWS OIDC requirement is not implemented in the generated workflow.
-- **claude-code (Claude Sonnet 4.5)**; overall 3.25; strength: Correctly restricts deployment to pushes on main; top finding: high: Cloud deployment authentication does not use OIDC.
-- **Score differences:** Correct: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.5; kiro (Qwen3 Coder Next) 3; Secure: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.5; kiro (Qwen3 Coder Next), claude-code (Claude Sonnet 4.5) 2.5; Reliable: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.5; kiro (Qwen3 Coder Next) 3.
-- **Edge cases identified:** Pull requests from forks do not receive deployment credentials or package-write permissions; Production deployment is restricted to pushes to main; Production approval is implemented through a GitHub Environment; Production Environment reviewer configuration is explicitly documented as external repository configuration; Dependency cache key includes package-lock.json hash.
-- **Edge cases missed:** Trivy image is not pinned to an immutable digest; GitHub Environment reviewer protection cannot be verified from repository YAML alone; actionlint semantic validation could not be performed because actionlint was not installed; The migration assumes payments-api deployment and staging/production namespace conventions from the Jenkins helper; The custom OIDC implementation depends on the GitHub runner providing curl, jq, AWS CLI, and the OIDC request environment variables.
+
+- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.42; strength: Faithfully maps the Jenkins unit, integration, scan, build, staging, production, rollback, concurrency, and notification behavior.
+
+- **claude-code (Claude Sonnet 4.5)**; overall 3.25; strength: Correctly restricts deployment to pushes on main.
+
+- **kiro (Qwen3 Coder Next)**; overall 3.08; strength: Creates the required deploy.yml workflow..
 
 ### Task 04 — Observability
-- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.62; strength: Production-oriented observability stack without an unnecessarily large Helm values file; top finding: medium: Alertmanager is single-replica with ephemeral storage.
-- **claude-code (Claude Sonnet 4.5)**; overall 4.25; strength: Comprehensive Prometheus configuration covering Kubernetes service discovery, persistence, retention, resources, security context, and health probes.; top finding: high: Prometheus and Alertmanager lack authentication and TLS by default.
-- **kiro (Qwen3 Coder Next)**; overall 2.92; strength: Creates a complete-looking observability stack covering Prometheus, Alertmanager and Grafana.; top finding: high: AlertmanagerDown alert has no configured Alertmanager scrape target.
-- **Score differences:** Correct: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.5; kiro (Qwen3 Coder Next) 3; Secure: codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock) 4.8; claude-code (Claude Sonnet 4.5) 3; Reliable: claude-code (Claude Sonnet 4.5) 5; kiro (Qwen3 Coder Next) 2.5.
-- **Edge cases identified:** 500-node cluster sizing explicitly discussed; High-cardinality labels explicitly identified and prohibited; Histogram bucket cardinality explicitly documented; Recording rule added for expensive namespace memory aggregation; Alertmanager HA mesh limitation explicitly documented.
-- **Edge cases missed:** ServiceMonitor resource is unnecessary or ineffective with the supplied standalone Prometheus implementation; Alertmanager notification state is lost when the single pod is rescheduled because emptyDir is used; Image digests are not pinned; No explicit validation evidence was provided showing the manifests were successfully applied to a live Kubernetes cluster.; No explicit evidence was provided that Prometheus Operator is installed before applying the ServiceMonitor..
+
+- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 4.62; strength: Production-oriented observability stack without an unnecessarily large Helm values file.
+
+- **claude-code (Claude Sonnet 4.5)**; overall 4.25; strength: Comprehensive Prometheus configuration covering Kubernetes service discovery, persistence, retention, resources, security context, and health probes..
+
+- **kiro (Qwen3 Coder Next)**; overall 2.92; strength: Creates a complete-looking observability stack covering Prometheus, Alertmanager and Grafana..
 
 ### Task 05 — Incident triage
-- **claude-code (Claude Sonnet 4.5)**; overall 4.25; strength: Strong evidence-based root cause identification; top finding: medium: Proposed 48Mi Node.js heap requires workload validation.
-- **codex (gpt-oss-20b)**; overall 5; strength: Follows the required triage sequence: pods → describe/events → logs → previous logs → resource limits → probes → rollout → desired versus running configuration.; top finding: note: Operational impact explicitly considered.
-- **kiro (Qwen3 Coder Next)**; overall 4.75; strength: Correctly identifies OOMKilled with exit code 137 as the immediate failure mechanism.; top finding: medium: Revision 13 described as confirmed stable.
-- **Score differences:** Correct: codex (gpt-oss-20b), kiro (Qwen3 Coder Next) 5; claude-code (Claude Sonnet 4.5) 4.5; Secure: codex (gpt-oss-20b) 5; claude-code (Claude Sonnet 4.5), kiro (Qwen3 Coder Next) 4; Reliable: codex (gpt-oss-20b), kiro (Qwen3 Coder Next) 5; claude-code (Claude Sonnet 4.5) 4.
-- **Edge cases identified:** Traffic spike or increased workload; Memory leak; Large PostgreSQL result sets; Dependency memory changes; Node.js version change.
-- **Edge cases missed:** No explicit measurement of memory usage before and after revision 14; No explicit confirmation of Deployment replica strategy during rollback; No explicit validation that readiness/liveness behavior supports the claimed zero-downtime rollback; No actual post-rollback cluster evidence.
+
+- **codex (0.150.1 / OpenAI gpt-oss-20b via Amazon Bedrock)**; overall 5; strength: Follows the required triage sequence: pods → describe/events → logs → previous logs → resource limits → probes → rollout → desired versus running configuration..
+
+- **kiro (Qwen3 Coder Next)**; overall 4.75; strength: Correctly identifies OOMKilled with exit code 137 as the immediate failure mechanism..
+
+- **claude-code (Claude Sonnet 4.5)**; overall 4.25; strength: Strong evidence-based root cause identification.
 
 ### Task 06 — Policy guardrails
-- **codex-gpt-oss-1-20b**; overall 4.73; strength: Policies evaluate Terraform plan JSON rather than HCL; top finding: medium: Executable OPA/Conftest verification was initially unavailable.
-- **kiro-qwen-3-coder-next (Qwen 3 Coder Next)**; overall 1.5; strength: Provides separate S3, security-group, EKS, and tagging policies.; top finding: critical: Required-tag policy denies the wrong resource class.
-- **claude-code (Claude Sonnet 4.5)**; overall 3.5; strength: Four required policy areas are implemented.; top finding: medium: after_unknown is not handled.
-- **Score differences:** Correct: claude-code (Claude Sonnet 4.5) 3.5; kiro-qwen-3-coder-next (Qwen 3 Coder Next) 1; Secure: claude-code (Claude Sonnet 4.5) 3.5; kiro-qwen-3-coder-next (Qwen 3 Coder Next) 2; Reliable: claude-code (Claude Sonnet 4.5) 3.5; kiro-qwen-3-coder-next (Qwen 3 Coder Next) 2.
-- **Edge cases identified:** create versus update versus no-op versus delete; Deletes deliberately skipped by policy scope; count and for_each expanded resource addresses; module-wrapped resources; after_unknown attributes.
-- **Edge cases missed:** Executable OPA and Conftest tests were not initially run because the tools were unavailable; OPA/Conftest versions should be pinned in CI for deterministic policy execution; S3 bucket with bucket_public_access_block but no encryption; S3 default encryption representations and Terraform plan unknown values; Resources that are incorrectly present in both taggable and untaggable sets.
+
+- **codex**; overall 4.73; strength: Policies evaluate Terraform plan JSON rather than HCL.
+
+- **claude-code (Claude Sonnet 4.5)**; overall 3.5; strength: Four required policy areas are implemented..
+
+- **kiro (Qwen3 Coder Next)**; overall 1.5; strength: Provides separate S3, security-group, EKS, and tagging policies.; top finding: critical security failure.
 
 ## Cross-cutting patterns
-- **IDE-first vs terminal-native:** Recurring strengths recorded across the runs include Strong evidence-based root cause identification; Clear correlation between revision 14 and the memory limit reduction; Correct identification of OOMKilled and exit code 137; Safe rollback path to known-good revision 13.
-- **Cloud-specific depth vs portability:** Recorded weaknesses include Claims zero downtime for rollback without sufficient evidence; Suggested 48Mi heap limit is not demonstrated to be sufficient; No actual transcript/tool-call capture was included in the evaluation artifact unless separately captured; Security scan reports three 0.0.0.0/0 CIDR entries requiring explicit review.
-- **Happy-path bias:** missed edge cases recorded include A live AWS-backed terraform plan was not executed; The module requires at least three availability zones and therefore cannot directly support a two-AZ region; CIDR-wide Terraform rules should receive an explicit production security review; The actual image digest is not pinned in the supplied Deployment; NetworkPolicy selectors and PostgreSQL port remain deployment-specific assumptions requiring verification.
-- **Secret handling:** Higher-severity findings recorded across the benchmark include S3 encryption policy has an incorrect default-encryption check; Required-tag policy denies the wrong resource class; EKS API endpoint exposed publicly to the entire internet; Plaintext production secret committed.
+
+- **IDE-first vs terminal-native:** The module hard-codes three AZ-dependent resources while only dynamically discovering the AZ list, making the advertised multi-AZ design unsafe for regions with fewer than three...; critical security failure
+
+- **Cloud-specific depth vs portability:** The module hard-codes three AZ-dependent resources while only dynamically discovering the AZ list, making the advertised multi-AZ design unsafe for regions with fewer than three...; critical security failure
+
+- **Happy-path bias:** No consistent pattern identified from the recorded evidence.
+
+- **Secret handling:** No recurring secret-handling finding identified.
