@@ -11,6 +11,7 @@ produce infrastructure work that is not merely syntactically correct, but
 also secure, reliable, operationally sound, and appropriate for production
 use.
 
+```mermaid
 flowchart TB
 
     A["📋 TASK DEFINITION<br/><br/>PROMPT.md<br/>Starter files<br/>Criteria<br/>Expected behaviours"]
@@ -51,6 +52,7 @@ flowchart TB
     style I fill:#f1f8e9,stroke:#558b2f,stroke-width:3px
     style J fill:#ffebee,stroke:#c62828,stroke-width:4px
     style K fill:#ffecb3,stroke:#ff8f00,stroke-width:3px,stroke-dasharray: 6 4
+  ```
 
 **Repository:** https://github.com/eyespan/infra-ai-testbed/
 
