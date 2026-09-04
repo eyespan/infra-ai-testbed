@@ -11,6 +11,31 @@ produce infrastructure work that is not merely syntactically correct, but
 also secure, reliable, operationally sound, and appropriate for production
 use.
 
+**Repository:** https://github.com/eyespan/infra-ai-testbed/
+
+---
+
+## 🎥 Watch the Project in Action
+
+### I Built an AI Infrastructure Agent Testbed — Evaluating Coding Agents on Real Infrastructure Tasks
+
+[![Watch the video](https://img.youtube.com/vi/Nx64q9NmTJQ/maxresdefault.jpg)](https://youtu.be/Nx64q9NmTJQ)
+
+A live demonstration of the **Infrastructure AI Agent Testbed**, showing how AI coding agents can be evaluated against realistic infrastructure engineering tasks across Terraform, Kubernetes, CI/CD, observability, incident triage, and infrastructure policy guardrails.
+
+The demonstration uses **Kiro with the Qwen3-Coder-Next model** to complete the benchmark tasks and shows how the resulting implementations are validated, reviewed, scored, and compared.
+
+▶ **[Watch the full demo on YouTube](https://youtu.be/Nx64q9NmTJQ)**
+
+The project also includes comparison results from other coding agents and models, including **Claude Code with Claude Sonnet 4.5** and **Codex with OpenAI gpt-oss-20b via Amazon Bedrock**.
+
+The testbed is designed so that you can use **the coding agent and model of your choice**, run the same tasks, and build your own evidence-based comparison.
+
+The objective is not simply to determine which AI writes the most code, but to explore which agents demonstrate the strongest **correctness, security, reliability, edge-case awareness, engineering judgment, and operational thinking**.
+
+---
+
+
 ```mermaid
 flowchart TB
 
@@ -53,8 +78,6 @@ flowchart TB
     style J fill:#ffebee,stroke:#c62828,stroke-width:4px
     style K fill:#ffecb3,stroke:#ff8f00,stroke-width:3px,stroke-dasharray: 6 4
   ```
-
-**Repository:** https://github.com/eyespan/infra-ai-testbed/
 
 Use this repository to:
 
